@@ -22,6 +22,14 @@ Open:
 - App: `http://127.0.0.1:4180/app.html`
 - Admin: `http://127.0.0.1:4180/admin.html`
 
+## Tests
+
+```powershell
+npm test
+```
+
+Runs `node --test` against `test/`, which currently covers the word-search and maze puzzle generators (grid shape, word placement correctness, maze solvability). These are pure functions with no server/database dependency, so the tests run without Ollama or the HTTP server.
+
 ## Optional Configuration
 
 ```powershell
