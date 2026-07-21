@@ -593,6 +593,9 @@ function validate(input){
   if(!input.topic)input.topic=input.theme;
   if(!input.topic||input.topic.length<3)throw new Error("Please enter a book idea so BrightBook can detect a theme.");
   if(!input.theme)input.theme="Custom Idea";
+  // Both checks are required: isGenreCompatible() only looks at genre-level theme/activity
+  // lists and can say "yes" for combinations the theme itself rejects (see the guardrail
+  // comment on isGenreCompatible() in lib/theme.js). Do not drop either check.
   if(input.theme!=="Custom Idea"&&!isCompatible(input.activityType,input.theme))throw new Error(`The detected theme is not a good fit for ${input.activityType}. Please adjust your book idea.`);
   if(input.theme!=="Custom Idea"&&!isGenreCompatible(input.activityType,input.theme,input.genreType))throw new Error(`The selected type / genre is not a good fit for ${input.activityType} with ${input.theme}. Please choose another combination.`);
   input.mazeLayout=String(input.mazeLayout||"Mixed Marketplace Variety").trim();

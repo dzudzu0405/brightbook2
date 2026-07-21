@@ -112,6 +112,9 @@ function allowedThemesFor(activity,genre){
   const hasLoadedFeatures=accountFeatures.size>0;
   const g=genreInfo(effectiveGenreForActivity(activity,genre));
   const allThemes=catalog.themes?.length?catalog.themes:THEME_GROUP_FALLBACK;
+  // activityCompatible (per-theme rule) is required alongside genreCompatible (per-genre
+  // rule) — a genre's compatibleThemes list can include themes that still fail the theme's
+  // own compatibleActivityTypes for this specific activity. Do not remove either check.
   return allThemes.filter(t=>{
     const allowedByPlan=hasFeature(t.featureKey);
     const activityCompatible=t.compatibleActivityTypes.includes(activity);
@@ -237,6 +240,9 @@ function applyFeatureGates(){
 
   genre=$("#genreType").value;
   let g=genreInfo(effectiveGenreForActivity(activity,genre));
+  // activityThemeCompatible is required alongside genreCompatible — a genre's
+  // compatibleActivityTypes list doesn't know which activities the currently selected
+  // theme itself excludes. Do not remove either check.
   const finalActivities=planActivities.filter(a=>{
     const t=themeInfo(theme);
     const activityThemeCompatible=t ? t.compatibleActivityTypes.includes(a.value) : true;
