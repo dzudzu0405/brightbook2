@@ -28,7 +28,7 @@ Open:
 npm test
 ```
 
-Runs `node --test` against `test/`, which currently covers the word-search and maze puzzle generators (grid shape, word placement correctness, maze solvability). These are pure functions with no server/database dependency, so the tests run without Ollama or the HTTP server.
+Runs `node --test` against `test/`, which currently covers the word-search puzzle generator (grid shape, word placement correctness). These are pure functions with no server/database dependency, so the tests run without Ollama or the HTTP server.
 
 ## Optional Configuration
 
@@ -88,7 +88,7 @@ BrightBook does not need to sell credits or monthly subscriptions. A one-time pl
 Examples:
 
 - Starter can include `activity.coloring`, `activity.word-search`, `quantity.25`, basic exports, and starter themes.
-- Pro can additionally include `activity.maze`, `activity.tracing`, `activity.matching`, `activity.counting`, more themes, `quantity.30`, and advanced direction.
+- Pro can additionally include `activity.tracing`, `activity.matching`, `activity.counting`, more themes, `quantity.30`, and advanced direction.
 - Publisher can unlock `activity.learning-worksheet`, save projects, listing assets, quality checks, series planning, and launch checklist output.
 - You can create your own keys in the admin panel, such as `export.pdf` or `mode.template-engine`.
 

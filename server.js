@@ -11,14 +11,12 @@ const USE_OLLAMA_GENERATION = process.env.USE_OLLAMA_GENERATION !== "0";
 
 const { db } = require("./lib/db");
 const {
-  THEME_GROUPS, GENRE_TYPES, MAZE_LAYOUT_TYPES, WORD_SEARCH_MODE_TYPES,
-  PUBLIC_ACTIVITY_TYPES, HIDDEN_ACTIVITY_TYPES,
+  THEME_GROUPS, GENRE_TYPES, ACTIVITY_TYPES, WORD_SEARCH_MODE_TYPES,
   detectThemeFromIdea, themeFeatureKey, compatibleActivityTypes, isCompatible,
   compatibleThemesForGenre, compatibleActivitiesForGenre, isGenreCompatible, styleFromGenre,
   themeVisualDirection, promptSceneTheme, themeElements, themeScenePool, sceneTitle
 } = require("./lib/theme");
 const { buildWordSearchPuzzle, wordBank } = require("./lib/generators/word-search");
-const { buildMazePuzzle } = require("./lib/generators/maze");
 const {
   ADMIN_TOKEN, adminAllowed, clientToken, userWithPlanByToken, resetPeriodIfNeeded,
   usageForUser, planFeatureKeys, requiredFeatureKeys, requireUserAccess, recordUsage,
@@ -89,12 +87,6 @@ const PRODUCT_RULES={
 - Keep the same recurring character design, clothing, colors, and personality on every page.
 - Each page is one concrete scene, advances the story, and teaches one gentle age-appropriate lesson.
 - The image prompt must restate the complete character lock whenever the recurring character appears.`,
-  "maze":`MAZE BOOK CONTRACT
-- Every maze must have one visible start, one visible goal, a theme-relevant obstacle set, and exactly one intended solution.
-- Vary maze silhouettes and scene concepts while keeping paths wide and printable. Use the selected maze layout/style when provided; if it is Mixed Marketplace Variety, rotate through rectangle, circular/ring, triangle/pyramid, object-shaped, house/barn, animal silhouette, and adventure path layouts across the book.
-- content_items must include a 9 by 9 maze blueprint using S, G, dot path cells, and hash wall cells, plus an exact solution route.
-- The image prompt must prioritize a playable maze over decorative shape accuracy: open entrance, open exit, unbroken white corridor, and no icons or decorations inside any corridor.
-- Start and goal characters/objects must sit outside the maze border beside the entrance/exit, never inside the maze path.`,
   "tracing":`TRACING & HANDWRITING CONTRACT
 - State the exact strokes, letters, numbers, or words to trace.
 - Progress gradually from guided examples to independent practice.
@@ -321,7 +313,6 @@ USER SETTINGS
 - Content language: ${input.language}
 - Product/activity type: ${input.activityType}
 - Type / genre direction: ${input.displayGenre || input.genreType || input.difficulty || "Classic Educational"}
-- Maze layout/style: ${input.activityType==="maze" ? input.mazeLayout : "not applicable"}
 - Word search mode: ${input.activityType==="word-search" ? input.wordSearchMode : "not applicable"}
 - Page size: A4 portrait
 - Illustration style: ${input.style}
@@ -356,19 +347,18 @@ RULES
 8. Answers must be exact and unambiguous. Never write "depends on the image", "depending on the task", or similar uncertainty.
 9. For counting and math, state exact quantities in content_items and give the exact numeric answer.
 10. For matching, list each exact pair in content_items and repeat the correct pairs in answer.
-11. For mazes, define the start, goal, obstacles, and one exact solvable route. Repeat that route in the answer.
-12. For word searches, provide the complete word list in content_items and repeat the exact list in the answer.
-13. For coloring or creative pages, the answer should say that multiple valid color choices are accepted while noting any learning requirement.
-14. For educational-story pages, create one connected story across the book. Each page must contain a short scene, an age-appropriate lesson, a concrete illustration prompt, and a simple reflection answer or takeaway.
-15. For tracing pages, specify the exact letters, words, or strokes to trace. For puzzle pages, fully define the puzzle and its exact solution.
-16. Respect the user book idea as a niche direction, but keep every page anchored to the selected theme and activity type.
-17. Respect special direction and exclude/avoid constraints unless they conflict with child safety or printable quality.
-18. Translate the requested illustration style into English inside image prompts. Do not put non-English style phrases in image prompts.
-19. Every image prompt must explicitly describe subjects, action, expression, clothing/costumes if relevant, props, background, composition, printable A4 portrait layout, and the selected type/genre direction.
-20. Do not use copyrighted characters, brands, logos, or trademarks.
-21. Do not claim that generated images are automatically KDP-ready.
-22. Every title and concept must be different from the titles already used in earlier batches.
-23. Return only JSON matching the supplied schema.`;
+11. For word searches, provide the complete word list in content_items and repeat the exact list in the answer.
+12. For coloring or creative pages, the answer should say that multiple valid color choices are accepted while noting any learning requirement.
+13. For educational-story pages, create one connected story across the book. Each page must contain a short scene, an age-appropriate lesson, a concrete illustration prompt, and a simple reflection answer or takeaway.
+14. For tracing pages, specify the exact letters, words, or strokes to trace. For puzzle pages, fully define the puzzle and its exact solution.
+15. Respect the user book idea as a niche direction, but keep every page anchored to the selected theme and activity type.
+16. Respect special direction and exclude/avoid constraints unless they conflict with child safety or printable quality.
+17. Translate the requested illustration style into English inside image prompts. Do not put non-English style phrases in image prompts.
+18. Every image prompt must explicitly describe subjects, action, expression, clothing/costumes if relevant, props, background, composition, printable A4 portrait layout, and the selected type/genre direction.
+19. Do not use copyrighted characters, brands, logos, or trademarks.
+20. Do not claim that generated images are automatically KDP-ready.
+21. Every title and concept must be different from the titles already used in earlier batches.
+22. Return only JSON matching the supplied schema.`;
 }
 async function generateBatch(input,startPage,batchCount,previousTitles,previousPages,abortSignal) {
   if(abortSignal?.aborted)throw abortError();
@@ -390,7 +380,6 @@ async function generateBatch(input,startPage,batchCount,previousTitles,previousP
     const book=JSON.parse(result.response);
     book.pages=book.pages.slice(0,batchCount).map((page,index)=>{
       const pageNumber=startPage+index;
-      if(input.activityType==="maze")return fallbackPage(input,pageNumber);
       return {
         ...page,
         page_number:pageNumber,
@@ -425,7 +414,7 @@ function fallbackPage(input,pageNumber){
   const commonPrompt=input.activityType==="coloring"
     ? coloringPrompt
     : `Create a clean ${input.style || "children's educational workbook illustration"} page for children, vertical A4 portrait composition. Scene: ${theme} ${activity} page ${pageNumber}; ${sceneSeed}. Include clear child-friendly subjects, balanced spacing, safe margins, readable silhouettes, and printable layout. Include theme-specific props and simple visual hierarchy. Avoid random text, fake labels, watermarks, logos, clutter, cropped important objects${avoid?`, ${avoid}`:""}.`;
-  const base={page_number:pageNumber,activity_type:input.activityType,title,instruction:`Color the ${theme.toLowerCase()} scene with care and notice the farm details.`,learning_goal:"Observation, vocabulary, focus, and age-appropriate problem solving.",content_items:[sceneSeed,`${activity} task`,`${input.age} friendly layout`],image_prompt:commonPrompt,answer:"Answers may vary when the page is creative; review the finished artwork for clarity."};
+  const base={page_number:pageNumber,activity_type:input.activityType,title,instruction:`Color the ${theme.toLowerCase()} scene with care and notice the small details.`,learning_goal:"Observation, vocabulary, focus, and age-appropriate problem solving.",content_items:[sceneSeed,`${activity} task`,`${input.age} friendly layout`],image_prompt:commonPrompt,answer:"Answers may vary when the page is creative; review the finished artwork for clarity."};
   if(input.activityType==="word-search"){
     const puzzle=buildWordSearchPuzzle(theme,pageNumber,input);
     const imagePrompt=`Create a clean printable word-search worksheet frame for children, vertical A4 portrait composition. Use small ${theme} themed border decorations in the corners and margins, with a large blank central rectangle reserved for a 12 by 12 word-search grid that will be added later by layout software. Include a small blank word-list area below the grid, generous white space, simple child-friendly icons, and a polished workbook feel. Do not render any letters, words, puzzle grid, answer key, labels, captions, signage, typography, watermark, logo, or random symbols anywhere in the image.`;
@@ -481,10 +470,6 @@ function fallbackPage(input,pageNumber){
   if(input.activityType==="tracing"){
     const words=[...new Set(wordBank(theme))].slice(0,3);
     return {...base,title:`${theme}: Trace Set ${pageNumber}`,instruction:`Trace the ${theme.toLowerCase()} vocabulary words, then write each word once on your own.`,learning_goal:"Letter formation, handwriting confidence, and theme vocabulary.",content_items:[`TRACE WORD 1: ${words[0]}`,`TRACE WORD 2: ${words[1]}`,`TRACE WORD 3: ${words[2]}`,`WRITING SPACE: one blank line after each word`],image_prompt:`Create a clean printable handwriting worksheet frame for children, vertical A4 portrait composition. Use small ${theme} themed decorations around the margins and leave three wide blank tracing rows plus independent writing lines for layout software. Do not render letters, dotted words, labels, captions, watermark, logo, or random text.`,answer:"Tracing is complete when each word is followed on the dotted guide and rewritten clearly on the blank line."};
-  }
-  if(input.activityType==="maze"){
-    const maze=buildMazePuzzle(theme,pageNumber,input);
-    return {...base,title:`${theme}: ${maze.layout} ${pageNumber}`,instruction:`${maze.mission} by moving from START to GOAL.`,learning_goal:"Planning, fine motor control, visual tracking, and problem solving.",content_items:[`MAZE LAYOUT: ${maze.layout}`,`MAZE SHAPE: ${maze.shape}`,"MAZE SIZE: 9 by 9 cells",maze.legend,...maze.rows.map((row,index)=>`MAZE ROW ${String(index+1).padStart(2,"0")}: ${row}`),`START CHARACTER: ${maze.start}`,`GOAL OBJECT: ${maze.goal}`,"START: S cell in the top-left area","GOAL: G cell in the bottom-right area",`SOLUTION ROUTE: ${maze.route}`,`SOLUTION CELLS: ${maze.cells}`],image_prompt:`Create a playable printable children's maze worksheet, vertical A4 portrait composition, inspired by bestselling kids maze activity books. Functional maze accuracy is more important than decorative shape accuracy. Layout style: ${maze.layout}. Shape requirement: ${maze.shape}. Mission: ${maze.mission}.\n\nMaze construction requirements: build one clean 9 by 9 maze from this exact topology blueprint: ${maze.rows.join(" / ")}. Treat S, dots, and G as open white corridor cells. Treat # as black wall cells. The final image must contain one continuous unbroken white corridor from START to GOAL following this exact solution route: ${maze.route}. Solution cell sequence: ${maze.cells}. Make the entrance an open gap cut through the outer border at the START side, and make the exit an open gap cut through the outer border at the GOAL side.\n\nVisual requirements: use wide white corridors, thick simple black maze walls, crisp printable line art, and generous spacing. Place one colorful arrow outside the maze pointing into the open entrance and one colorful arrow outside the maze pointing out of the open exit. Place a small ${maze.start} icon outside the maze border beside the entrance. Place a small ${maze.goal} icon outside the maze border beside the exit. Add small ${theme} themed decorations outside the maze border only.\n\nQuality check before final image: trace the path visually from the entrance to the exit. If any wall blocks the route, if the exit is sealed, or if any icon/object sits inside the corridor, redraw the maze until the route is fully solvable.\n\nText and safety rules: Leave blank Name and Date lines at the top, but do not render any other readable text. Do not place decorative objects, characters, animals, bones, food, props, labels, or shadows inside paths. Do not create blocked exits, disconnected corridors, dead-end-only starts, extra starts, extra goals, captions, watermark, logo, or random text.`,answer:`Solution route: ${maze.route}. Solution cells: ${maze.cells}.`};
   }
   return base;
 }
@@ -567,12 +552,6 @@ function validate(input){
   if(!input.activityType)throw new Error("Please select an activity type.");
   input.genreType=String(input.genreType||input.difficulty||"Classic Educational").trim();
   input.displayGenre=String(input.displayGenre||"").trim();
-  if(input.activityType==="maze"){
-    const selectedMazeLayout=MAZE_LAYOUT_TYPES.includes(input.displayGenre)?input.displayGenre:(MAZE_LAYOUT_TYPES.includes(input.genreType)?input.genreType:input.mazeLayout);
-    input.mazeLayout=String(selectedMazeLayout||"Mixed Marketplace Variety").trim();
-    input.displayGenre=input.mazeLayout;
-    input.genreType="Classic Educational";
-  }
   if(input.activityType==="word-search"){
     const selectedWordSearchMode=WORD_SEARCH_MODE_TYPES.includes(input.displayGenre)?input.displayGenre:(WORD_SEARCH_MODE_TYPES.includes(input.genreType)?input.genreType:input.wordSearchMode);
     input.wordSearchMode=String(selectedWordSearchMode||"Standard Word Search").trim();
@@ -598,9 +577,6 @@ function validate(input){
   // comment on isGenreCompatible() in lib/theme.js). Do not drop either check.
   if(input.theme!=="Custom Idea"&&!isCompatible(input.activityType,input.theme))throw new Error(`The detected theme is not a good fit for ${input.activityType}. Please adjust your book idea.`);
   if(input.theme!=="Custom Idea"&&!isGenreCompatible(input.activityType,input.theme,input.genreType))throw new Error(`The selected type / genre is not a good fit for ${input.activityType} with ${input.theme}. Please choose another combination.`);
-  input.mazeLayout=String(input.mazeLayout||"Mixed Marketplace Variety").trim();
-  if(input.activityType==="maze"&&!MAZE_LAYOUT_TYPES.includes(input.mazeLayout))throw new Error("Please select a valid maze layout / style.");
-  if(input.activityType!=="maze")input.mazeLayout="";
   input.wordSearchMode=String(input.wordSearchMode||"Standard Word Search").trim();
   if(input.activityType==="word-search"&&!WORD_SEARCH_MODE_TYPES.includes(input.wordSearchMode))throw new Error("Please select a valid word search type / genre.");
   if(input.activityType!=="word-search")input.wordSearchMode="";
@@ -637,14 +613,18 @@ async function adminApi(req,res,pathname) {
     const current = db.prepare("SELECT * FROM plans WHERE id=?").get(id);
     if (!current) return json(res,404,{error:"Plan not found."});
     const input = await body(req);
-    db.prepare("UPDATE plans SET name=?,monthly_prompt_limit=?,price_cents=?,active=? WHERE id=?")
-      .run(
-        input.name==null?current.name:String(input.name).trim(),
-        input.monthlyPromptLimit==null?current.monthly_prompt_limit:Number(input.monthlyPromptLimit),
-        input.priceCents==null?current.price_cents:Number(input.priceCents),
-        input.active==null?current.active:(input.active?1:0),
-        id
-      );
+    try {
+      db.prepare("UPDATE plans SET name=?,monthly_prompt_limit=?,price_cents=?,active=? WHERE id=?")
+        .run(
+          input.name==null?current.name:String(input.name).trim(),
+          input.monthlyPromptLimit==null?current.monthly_prompt_limit:Number(input.monthlyPromptLimit),
+          input.priceCents==null?current.price_cents:Number(input.priceCents),
+          input.active==null?current.active:(input.active?1:0),
+          id
+        );
+    } catch(e) {
+      return json(res,400,{error:e.message.includes("UNIQUE")?"A plan with that name already exists.":e.message});
+    }
     return json(res,200,{ok:true});
   }
 
@@ -707,8 +687,12 @@ async function adminApi(req,res,pathname) {
       usageLimitOverride: input.usageLimitOverride===undefined?current.usage_limit_override:(input.usageLimitOverride===null?null:Number(input.usageLimitOverride)),
       token: input.token==null?current.access_token:String(input.token).trim()
     };
-    db.prepare("UPDATE users SET email=?,name=?,plan_id=?,status=?,usage_limit_override=?,access_token=? WHERE id=?")
-      .run(next.email,next.name,next.planId,next.status,next.usageLimitOverride,next.token,id);
+    try {
+      db.prepare("UPDATE users SET email=?,name=?,plan_id=?,status=?,usage_limit_override=?,access_token=? WHERE id=?")
+        .run(next.email,next.name,next.planId,next.status,next.usageLimitOverride,next.token,id);
+    } catch(e) {
+      return json(res,400,{error:e.message.includes("UNIQUE")?"Another user already uses that email or token.":e.message});
+    }
     return json(res,200,{ok:true});
   }
 
@@ -730,10 +714,9 @@ async function api(req,res,pathname){
   }
   if(pathname==="/api/catalog"&&req.method==="GET"){
     return json(res,200,{
-      activities:PUBLIC_ACTIVITY_TYPES.map(type=>({type,featureKey:`activity.${type}`})),
+      activities:ACTIVITY_TYPES.map(type=>({type,featureKey:`activity.${type}`})),
       themes:THEME_GROUPS.flatMap(([category,items])=>items.map(name=>({name,category,featureKey:themeFeatureKey(name),compatibleActivityTypes:compatibleActivityTypes(name)}))),
       genres:GENRE_TYPES.map(name=>({name,compatibleActivityTypes:compatibleActivitiesForGenre(name),compatibleThemes:compatibleThemesForGenre(name)})),
-      mazeLayouts:HIDDEN_ACTIVITY_TYPES.has("maze")?[]:MAZE_LAYOUT_TYPES,
       wordSearchModes:WORD_SEARCH_MODE_TYPES
     });
   }

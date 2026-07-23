@@ -61,15 +61,14 @@ If the user idea is vague, the app may use a reasonable default, but it should c
 
 ## Supported Activity Types For Main Product
 
-The focused MVP product should prioritize these 7 activity types:
+The focused MVP product should prioritize these 6 activity types:
 
 1. Word Search Book
 2. Coloring Book
-3. Maze Book
-4. Tracing & Handwriting Book
-5. Matching Activity Book
-6. Counting Book
-7. Educational Worksheet Pack
+3. Tracing & Handwriting Book
+4. Matching Activity Book
+5. Counting Book
+6. Educational Worksheet Pack
 
 These are the safest and most commercially understandable activity types for KDP/Etsy buyers.
 
@@ -131,36 +130,7 @@ Quality rule:
 
 Coloring prompts should not ask for titles or visible text inside the image.
 
-### 3. Maze Book
-
-User expectation:
-
-I want maze pages that have a clear start, goal, obstacle concept, and solution path.
-
-Output requirements:
-
-- Each page must have one maze.
-- Maze must include a start and goal.
-- Maze route must be solvable.
-- Answer key must give a clear route.
-- Themed decoration must stay outside the maze paths.
-- Image prompt must request wide, printable paths.
-
-Required output fields per page:
-
-- Title
-- Maze instruction
-- Start location
-- Goal location
-- Obstacles or theme decorations
-- Solution route
-- Image prompt
-
-Quality rule:
-
-The maze should be visually simple enough for children and should not include decorative clutter inside the path.
-
-### 4. Tracing & Handwriting Book
+### 3. Tracing & Handwriting Book
 
 User expectation:
 
@@ -187,7 +157,7 @@ Quality rule:
 
 Letters and dotted tracing content should be generated as layout/text data, not baked into AI artwork.
 
-### 5. Matching Activity Book
+### 4. Matching Activity Book
 
 User expectation:
 
@@ -199,7 +169,7 @@ Output requirements:
 - The answer key must repeat every correct match.
 - Image prompt should create a worksheet frame with blank columns and open space for connecting lines.
 
-### 6. Counting Book
+### 5. Counting Book
 
 User expectation:
 
@@ -211,7 +181,7 @@ Output requirements:
 - The image prompt must ask for exactly that number of visible objects.
 - The answer key must give the exact number.
 
-### 7. Educational Worksheet Pack
+### 6. Educational Worksheet Pack
 
 User expectation:
 
@@ -332,7 +302,6 @@ Unlock more book formats and more product variety.
 
 Suggested access:
 
-- Maze Book
 - Tracing & Handwriting Book
 - Matching Activity Book
 - Counting Book
@@ -372,7 +341,6 @@ Important feature keys:
 ```text
 activity.coloring
 activity.word-search
-activity.maze
 activity.tracing
 activity.matching
 activity.counting
@@ -437,7 +405,6 @@ Generated kits should:
 
 - Word Search pages include word list, grid rows, and answer key.
 - Coloring pages include black-and-white line art prompts with no text.
-- Maze pages include start, goal, and route.
 - Tracing pages include exact tracing words or letters.
 - Educational Worksheet pages include tasks and answers.
 

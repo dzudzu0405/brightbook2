@@ -47,7 +47,14 @@ async function loadUsers(){
       <td><button data-copy="${esc(u.token)}">Copy</button><button data-save="${u.id}">Save</button></td>
     </tr>`).join("");
   $$("[data-copy]").forEach(b=>b.addEventListener("click",async()=>{await navigator.clipboard.writeText(b.dataset.copy);toast("Token copied")}));
-  $$("[data-save]").forEach(b=>b.addEventListener("click",async()=>{const id=b.dataset.save;const status=document.querySelector(`[data-status="${id}"]`).value;const planId=Number(document.querySelector(`[data-plan="${id}"]`).value);await api(`/api/admin/users/${id}`,{method:"PATCH",body:JSON.stringify({status,planId})});toast("User updated");await loadUsers()}));
+  $$("[data-save]").forEach(b=>b.addEventListener("click",async()=>{
+    try{
+      const id=b.dataset.save;const status=document.querySelector(`[data-status="${id}"]`).value;const planId=Number(document.querySelector(`[data-plan="${id}"]`).value);
+      await api(`/api/admin/users/${id}`,{method:"PATCH",body:JSON.stringify({status,planId})});
+      toast("User updated");
+      await loadUsers();
+    }catch(e){toast("Unable to update user",e.message)}
+  }));
 }
 async function loadUsage(){
   const d=await api("/api/admin/usage");
