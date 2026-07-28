@@ -6,6 +6,10 @@ declare(strict_types=1);
 // request - db.php only creates tables, it never seeds automatically.
 // Usage: curl -H "X-Admin-Token: <token>" https://yourdomain.com/migrate.php
 
+// Optional, gitignored - holds GROQ_API_KEY / GEMINI_API_KEY / ADMIN_TOKEN via putenv()
+// on hosts with no other way to set env vars. See config.example.php.
+if (is_file(__DIR__ . '/../config.php')) require_once __DIR__ . '/../config.php';
+
 require_once __DIR__ . '/../src/db.php';
 require_once __DIR__ . '/../src/theme.php';
 require_once __DIR__ . '/../src/access.php';

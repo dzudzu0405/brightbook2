@@ -2,6 +2,7 @@ data/*.db
 data/*.db-*
 php/data/*.db
 php/data/*.db-*
+php/config.php
 *.log
 node_modules/
 .env
