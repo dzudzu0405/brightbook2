@@ -41,18 +41,58 @@ function bb_visual_contract(array &$input): array {
     ];
 }
 
+const WORKSHEET_FRAME_LABELS = [
+    'matching' => 'matching worksheet frame with two large blank columns reserved for text and picture cards, keeping the center area open for connecting lines',
+    'simple-math' => 'math worksheet frame with small themed counters in the margins and one large blank problem area plus answer box',
+    'puzzle' => "children's puzzle worksheet frame with four blank choice cards and one answer circle area",
+    'learning-worksheet' => 'educational worksheet frame with three clear blank task sections, one drawing box, and generous writing space',
+    'tracing' => 'handwriting worksheet frame with three wide blank tracing rows plus independent writing lines',
+];
+
 function bb_lock_image_prompt(string $prompt, array &$input): string {
     $c = bb_visual_contract($input);
     $scene = preg_replace('/[.\s]+$/', '', trim($prompt));
-    if (($input['activityType'] ?? '') === 'word-search') {
-        $themeOrTopic = $input['theme'] ?: ($input['topic'] ?? '');
+    $activityType = $input['activityType'] ?? '';
+    $themeOrTopic = $input['theme'] ?: ($input['topic'] ?? '');
+
+    if ($activityType === 'word-search') {
         return "Create a clean printable word-search worksheet frame for children, vertical A4 portrait composition.\n\n"
             . "Scene decoration: {$scene}. Use only small {$themeOrTopic} themed border illustrations in the corners and margins, with a large blank central rectangle reserved for a word-search grid that will be added later by layout software.\n\n"
             . "Layout requirements: clear title-safe area at the top, word-list area below or beside the blank grid space, generous margins, simple child-friendly decorative icons, balanced worksheet composition, no busy background behind the puzzle area.\n\n"
             . "Critical text rule: do not render any letters, words, puzzle grid, answer key, labels, captions, signage, typography, watermark, logo, or random symbols anywhere in the image.\n\n"
             . "Negative prompt: letters, words, text, typography, alphabet, numbers, grid letters, word search grid, answer key, labels, captions, signs, watermark, logo, clutter, cropped layout, photorealism, 3D render.";
     }
-    if (($input['activityType'] ?? '') === 'coloring') {
+
+    // These activity types are laid out by external tooling after generation (blank
+    // columns/rows/cards for the real content), so the image itself must stay a mostly
+    // empty decorative frame - matches the hand-written fallback templates in
+    // bb_fallback_page(), which the AI-generation path must stay consistent with.
+    if (isset(WORKSHEET_FRAME_LABELS[$activityType])) {
+        $frameLabel = WORKSHEET_FRAME_LABELS[$activityType];
+        return "Create a clean printable {$frameLabel} for children, vertical A4 portrait composition.\n\n"
+            . "Scene decoration: {$scene}. Use only small {$themeOrTopic} themed decorative icons around the margins; keep the working area open and mostly blank for content that will be added later by layout software.\n\n"
+            . "Layout requirements: generous white space, simple child-friendly decorative elements, balanced worksheet composition, clean margins, no busy background behind the working area.\n\n"
+            . "Critical text rule: do not render any words, letters, numbers, labels, captions, answer keys, signage, typography, watermark, logo, or random symbols anywhere in the image.\n\n"
+            . "Negative prompt: letters, words, text, typography, numbers, labels, captions, answer key, watermark, logo, clutter, cropped layout, photorealism, 3D render.";
+    }
+
+    if ($activityType === 'counting') {
+        return "Create a clean printable counting worksheet scene for children, vertical A4 portrait composition.\n\n"
+            . "Scene: {$scene}. Show every counted object fully visible, clearly separated, and easy to distinguish, with generous spacing and one blank answer box reserved for layout software.\n\n"
+            . "Style: {$c['styleAnchor']}; {$c['layoutLock']}; {$c['themeDirection']}.\n\n"
+            . "Critical text rule: do not render numerals, written labels, captions, answer keys, watermark, logo, or random text anywhere in the image.\n\n"
+            . "Negative prompt: numerals, numbers, letters, words, text, labels, captions, answer key, watermark, logo, cropped subjects, overlapping objects, photorealism, 3D render.";
+    }
+
+    if ($activityType === 'spot-difference') {
+        return "Create a printable spot-the-difference worksheet layout for children, vertical A4 portrait composition.\n\n"
+            . "Scene: two side-by-side panels of {$scene}, with identical camera angle, matching character placement, and clear simple details so only the intended differences stand out.\n\n"
+            . "Style: {$c['styleAnchor']}; {$c['themeDirection']}.\n\n"
+            . "Critical text rule: do not render labels, captions, letters, numbers, watermark, logo, or random text anywhere in the image.\n\n"
+            . "Negative prompt: labels, captions, letters, numbers, text, watermark, logo, mismatched camera angles, cropped subjects, photorealism, 3D render.";
+    }
+
+    if ($activityType === 'coloring') {
         $scene = preg_replace('/\bvibrant\b/i', 'lively', $scene);
         $scene = preg_replace('/\bcolorful\b/i', 'varied', $scene);
         $scene = preg_replace('/\bfull[- ]color\b/i', 'black-and-white', $scene);
@@ -295,9 +335,13 @@ function bb_build_prompt(array $input, int $startPage, int $batchCount, array $p
         . "PRODUCT-SPECIFIC RULES\n" . bb_product_rules($input['activityType']) . "\n\n"
         . "MASTER VISUAL PROMPT CONTRACT\n"
         . "- Write image_prompt like a professional AI image prompt, similar to a Midjourney / Ideogram / ChatGPT image prompt.\n"
-        . "- Each image_prompt scene body must be 90-170 words before the app adds final style and negative prompt sections.\n"
-        . "- Use this structure inside the scene body: main scene, exact subjects, character actions, facial expressions, clothing/costumes, props, background, decorative elements, composition, and printable layout.\n"
-        . "- For coloring pages, image_prompt must specify black-and-white line art subjects and many fun decorative elements, but avoid color words.\n"
+        . (in_array($input['activityType'], ['word-search', 'matching', 'simple-math', 'puzzle', 'learning-worksheet', 'tracing'], true)
+            ? "- This activity type is laid out by separate software after generation: the image itself must stay a mostly EMPTY decorative frame, not an illustrated scene.\n"
+              . "- The image_prompt scene body must be 20-40 words describing ONLY small margin/border decorations (simple theme-related icons or motifs). Do NOT describe any character, person, animal performing an action, facial expression, clothing/costume, or props being used - those belong in content_items/answer text, never in the image.\n"
+              . "- Explicitly state in the scene body that the central/working area of the page must stay blank/empty for content added later by layout software.\n\n"
+            : "- Each image_prompt scene body must be 90-170 words before the app adds final style and negative prompt sections.\n"
+              . "- Use this structure inside the scene body: main scene, exact subjects, character actions, facial expressions, clothing/costumes, props, background, decorative elements, composition, and printable layout.\n"
+              . "- For coloring pages, image_prompt must specify black-and-white line art subjects and many fun decorative elements, but avoid color words.\n")
         . "- For covers, cover_prompt must be full-color even when the product is a coloring book. It must be premium and book-cover-like: vertical 2:3 cover composition, rich color palette, title-safe space, ornate framing, clear central character or object, professional publishing design.\n"
         . "- If cover_prompt includes typography, describe the text layout area clearly, but do not invent unreadable random text.\n\n"
         . "RULES\n"
@@ -318,7 +362,7 @@ function bb_build_prompt(array $input, int $startPage, int $batchCount, array $p
         . "15. Respect the user book idea as a niche direction, but keep every page anchored to the selected theme and activity type.\n"
         . "16. Respect special direction and exclude/avoid constraints unless they conflict with child safety or printable quality.\n"
         . "17. Translate the requested illustration style into English inside image prompts. Do not put non-English style phrases in image prompts.\n"
-        . "18. Every image prompt must explicitly describe subjects, action, expression, clothing/costumes if relevant, props, background, composition, printable A4 portrait layout, and the selected type/genre direction.\n"
+        . "18. For coloring, counting, spot-difference, and educational-story pages, every image prompt must explicitly describe subjects, action, expression, clothing/costumes if relevant, props, background, composition, printable A4 portrait layout, and the selected type/genre direction. For word-search, matching, simple-math, puzzle, learning-worksheet, and tracing pages, the image prompt must describe ONLY a blank decorative frame (small border icons, no characters or props performing anything) exactly as required in the MASTER VISUAL PROMPT CONTRACT above.\n"
         . "19. Do not use copyrighted characters, brands, logos, or trademarks.\n"
         . "20. Do not claim that generated images are automatically KDP-ready.\n"
         . "21. Every title and concept must be different from the titles already used in earlier batches.\n"
