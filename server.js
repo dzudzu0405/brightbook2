@@ -5,9 +5,11 @@ const crypto = require("node:crypto");
 
 const ROOT = __dirname;
 const PORT = Number(process.env.PORT || 4180);
-const OLLAMA_URL = process.env.OLLAMA_URL || "http://127.0.0.1:11434";
-const MODEL = process.env.OLLAMA_MODEL || "gemma3:4b";
-const USE_OLLAMA_GENERATION = process.env.USE_OLLAMA_GENERATION !== "0";
+const GROQ_API_KEY = process.env.GROQ_API_KEY || "";
+const GROQ_MODEL = process.env.GROQ_MODEL || "llama-3.3-70b-versatile";
+const GEMINI_API_KEY = process.env.GEMINI_API_KEY || "";
+const GEMINI_MODEL = process.env.GEMINI_MODEL || "gemini-flash-latest";
+const USE_AI_GENERATION = process.env.USE_AI_GENERATION !== "0";
 
 const { db } = require("./lib/db");
 const {
@@ -41,35 +43,8 @@ async function body(req) {
   for await(const chunk of req){size+=chunk.length;if(size>1e6)throw new Error("The request is too large.");chunks.push(chunk)}
   return chunks.length?JSON.parse(Buffer.concat(chunks).toString("utf8")):{};
 }
-async function ollamaReady() {
-  try {
-    const r = await fetch(`${OLLAMA_URL}/api/tags`, { signal: AbortSignal.timeout(2500) });
-    if (!r.ok) return false;
-    const data = await r.json();
-    return data.models?.some(x => x.name === MODEL || x.model === MODEL) || false;
-  } catch { return false; }
-}
-function schema(count) {
-  return {
-    type:"object",additionalProperties:false,
-    required:["book_title","subtitle","description","cover_prompt","keywords","pages"],
-    properties:{
-      book_title:{type:"string"},subtitle:{type:"string"},description:{type:"string"},
-      cover_prompt:{type:"string"},
-      keywords:{type:"array",minItems:5,maxItems:8,items:{type:"string"}},
-      pages:{type:"array",minItems:count,maxItems:count,items:{
-        type:"object",additionalProperties:false,
-        required:["page_number","activity_type","title","instruction","learning_goal","content_items","image_prompt","answer"],
-        properties:{
-          page_number:{type:"integer"},activity_type:{type:"string"},title:{type:"string"},
-          instruction:{type:"string"},learning_goal:{type:"string"},
-          content_items:{type:"array",minItems:1,maxItems:24,items:{type:"string"}},
-          image_prompt:{type:"string"},answer:{type:"string"}
-        }
-      }}
-    }
-  };
-}
+function groqReady() { return !!GROQ_API_KEY; }
+function geminiReady() { return !!GEMINI_API_KEY; }
 const PRODUCT_RULES={
   "coloring":`COLORING BOOK CONTRACT
 - One clear focal scene per page with 1-4 large subjects.
@@ -325,6 +300,27 @@ USER SETTINGS
 REQUIRED PAGE PLAN
 ${pagePlan}
 
+REQUIRED JSON OUTPUT FORMAT
+Return a single JSON object, no markdown fences, no commentary before or after it, with exactly this shape:
+{
+  "book_title": string,
+  "subtitle": string,
+  "description": string,
+  "cover_prompt": string,
+  "keywords": array of 5 to 8 strings,
+  "pages": array of exactly ${batchCount} objects, each shaped as:
+    {
+      "page_number": integer,
+      "activity_type": string,
+      "title": string,
+      "instruction": string,
+      "learning_goal": string,
+      "content_items": array of 1 to 24 strings,
+      "image_prompt": string,
+      "answer": string
+    }
+}
+
 PRODUCT-SPECIFIC RULES
 ${productRules(input.activityType)}
 
@@ -358,43 +354,93 @@ RULES
 19. Do not use copyrighted characters, brands, logos, or trademarks.
 20. Do not claim that generated images are automatically KDP-ready.
 21. Every title and concept must be different from the titles already used in earlier batches.
-22. Return only JSON matching the supplied schema.`;
+22. Return only the JSON object described in REQUIRED JSON OUTPUT FORMAT above, no markdown fences, no extra keys.`;
 }
-async function generateBatch(input,startPage,batchCount,previousTitles,previousPages,abortSignal) {
+async function withAbort(abortSignal,timeoutMs,run) {
   if(abortSignal?.aborted)throw abortError();
   const controller = new AbortController();
   const abortHandler=()=>controller.abort();
   abortSignal?.addEventListener("abort",abortHandler,{once:true});
-  const timeout = setTimeout(() => controller.abort(), 45000);
+  const timeout = setTimeout(() => controller.abort(), timeoutMs);
   try {
-    const response = await fetch(`${OLLAMA_URL}/api/generate`, {
-      method:"POST",signal:controller.signal,
-      headers:{"Content-Type":"application/json"},
-      body:JSON.stringify({
-        model:MODEL,prompt:buildPrompt(input,startPage,batchCount,previousTitles,previousPages),stream:false,think:false,format:schema(batchCount),
-        keep_alive:"15m",options:{temperature:.55,num_ctx:8192,num_predict:7000}
-      })
-    });
-    if(!response.ok)throw new Error(`Ollama ${response.status}: ${(await response.text()).slice(0,300)}`);
-    const result=await response.json();
-    const book=JSON.parse(result.response);
-    book.pages=book.pages.slice(0,batchCount).map((page,index)=>{
-      const pageNumber=startPage+index;
-      return {
-        ...page,
-        page_number:pageNumber,
-        activity_type:input.activityType,
-        image_prompt:lockImagePrompt(page.image_prompt,input)
-      };
-    });
-    book.cover_prompt=lockCoverPrompt(book.cover_prompt,input);
-    ensurePublishingKit(book,input);
-    if(book.pages.length!==batchCount)throw new Error("The content engine did not create every requested prompt. Please try again.");
-    return {book,metrics:{totalDuration:result.total_duration,evalCount:result.eval_count}};
+    return await run(controller.signal);
   } finally {
     clearTimeout(timeout);
     abortSignal?.removeEventListener("abort",abortHandler);
   }
+}
+async function callGroq(prompt,abortSignal) {
+  if(!GROQ_API_KEY)throw new Error("GROQ_API_KEY is not configured.");
+  return withAbort(abortSignal,45000,async(signal)=>{
+    const response = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+      method:"POST",signal,
+      headers:{"Content-Type":"application/json","Authorization":`Bearer ${GROQ_API_KEY}`},
+      body:JSON.stringify({
+        model:GROQ_MODEL,
+        messages:[{role:"user",content:prompt}],
+        response_format:{type:"json_object"},
+        temperature:.55
+      })
+    });
+    if(!response.ok)throw new Error(`Groq ${response.status}: ${(await response.text()).slice(0,300)}`);
+    const result=await response.json();
+    const content=result.choices?.[0]?.message?.content;
+    if(!content)throw new Error("Groq returned an empty response.");
+    return {book:JSON.parse(content),metrics:{totalDuration:0,evalCount:result.usage?.total_tokens||0}};
+  });
+}
+async function callGemini(prompt,abortSignal) {
+  if(!GEMINI_API_KEY)throw new Error("GEMINI_API_KEY is not configured.");
+  // Longer timeout than Groq: current Gemini flash models spend time on internal
+  // "thinking" before answering, which can comfortably exceed 45s for a 5-page batch.
+  // (thinkingConfig.thinkingBudget:0 would disable that, but it 400s on some model
+  // versions/API surfaces, so we don't rely on it — just give it more time instead.)
+  return withAbort(abortSignal,90000,async(signal)=>{
+    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(GEMINI_MODEL)}:generateContent?key=${encodeURIComponent(GEMINI_API_KEY)}`, {
+      method:"POST",signal,
+      headers:{"Content-Type":"application/json"},
+      body:JSON.stringify({
+        contents:[{parts:[{text:prompt}]}],
+        generationConfig:{responseMimeType:"application/json",temperature:.55}
+      })
+    });
+    if(!response.ok)throw new Error(`Gemini ${response.status}: ${(await response.text()).slice(0,300)}`);
+    const result=await response.json();
+    const content=result.candidates?.[0]?.content?.parts?.[0]?.text;
+    if(!content)throw new Error("Gemini returned an empty response.");
+    return {book:JSON.parse(content),metrics:{totalDuration:0,evalCount:result.usageMetadata?.totalTokenCount||0}};
+  });
+}
+async function generateBatch(input,startPage,batchCount,previousTitles,previousPages,abortSignal) {
+  if(abortSignal?.aborted)throw abortError();
+  const prompt=buildPrompt(input,startPage,batchCount,previousTitles,previousPages);
+  let result;
+  try {
+    result=await callGroq(prompt,abortSignal);
+  } catch(groqError) {
+    if(abortSignal?.aborted)throw abortError();
+    console.warn("Groq generation failed, trying Gemini:",groqError.message);
+    try {
+      result=await callGemini(prompt,abortSignal);
+    } catch(geminiError) {
+      if(abortSignal?.aborted)throw abortError();
+      throw new Error(`Groq: ${groqError.message} | Gemini: ${geminiError.message}`);
+    }
+  }
+  const book=result.book;
+  book.pages=book.pages.slice(0,batchCount).map((page,index)=>{
+    const pageNumber=startPage+index;
+    return {
+      ...page,
+      page_number:pageNumber,
+      activity_type:input.activityType,
+      image_prompt:lockImagePrompt(page.image_prompt,input)
+    };
+  });
+  book.cover_prompt=lockCoverPrompt(book.cover_prompt,input);
+  ensurePublishingKit(book,input);
+  if(book.pages.length!==batchCount)throw new Error("The content engine did not create every requested prompt. Please try again.");
+  return {book,metrics:result.metrics};
 }
 function fallbackPage(input,pageNumber){
   const theme=input.theme==="Custom Idea" ? (input.topic||input.bookIdea||"Custom Idea") : (input.theme||input.topic||"Activity");
@@ -497,13 +543,13 @@ function generateFallbackBook(input,reason=""){
   const duplicateTitles=pages.map(p=>p.title).filter((title,index,arr)=>arr.indexOf(title)!==index);
   if(duplicateTitles.length)book.quality_check.warnings.unshift("Some generated page titles are duplicated; review the series before publishing.");
   const fastMode = /fast product kit mode/i.test(reason);
-  book.quality_check.warnings.unshift(fastMode?"Generated with Fast Product Kit mode for immediate output. Enable USE_OLLAMA_GENERATION=1 for slower local AI drafting.":reason?`Generated with the quick fallback because the local model was slow or unavailable: ${reason}`:"Generated with the quick fallback workflow.");
+  book.quality_check.warnings.unshift(fastMode?"Generated with Fast Product Kit mode for immediate output. Enable USE_AI_GENERATION=1 (and configure GROQ_API_KEY/GEMINI_API_KEY) for AI-drafted content.":reason?`Generated with the quick fallback because the AI content engine was slow or unavailable: ${reason}`:"Generated with the quick fallback workflow.");
   book.quality_check.score=Math.min(book.quality_check.score,82);
   return {book,metrics:{totalDuration:0,evalCount:0,batches:0,fallback:true,reason}};
 }
 async function generateBook(input,abortSignal) {
   if(abortSignal?.aborted)throw abortError();
-  if(!USE_OLLAMA_GENERATION) return generateFallbackBook(input,"Fast product kit mode is enabled.");
+  if(!USE_AI_GENERATION) return generateFallbackBook(input,"Fast product kit mode is enabled.");
   try {
   const batchSize=5,pages=[],titles=[];let metadata=null,totalDuration=0,evalCount=0;
   for(let startPage=1;startPage<=input.pageCount;startPage+=batchSize){
@@ -710,7 +756,7 @@ async function adminApi(req,res,pathname) {
 async function api(req,res,pathname){
   if(pathname.startsWith("/api/admin/")) return adminApi(req,res,pathname);
   if(pathname==="/api/health"&&req.method==="GET"){
-    const ready=await ollamaReady();return json(res,200,{ok:true,ollama:ready,model:MODEL,billing:true});
+    return json(res,200,{ok:true,groq:groqReady(),gemini:geminiReady(),groqModel:GROQ_MODEL,geminiModel:GEMINI_MODEL,billing:true});
   }
   if(pathname==="/api/catalog"&&req.method==="GET"){
     return json(res,200,{
@@ -728,9 +774,9 @@ async function api(req,res,pathname){
   if(pathname==="/api/generate"&&req.method==="POST"){
     let input;try{input=validate(await body(req))}catch(e){return json(res,400,{error:e.message})}
     let access;try{access=requireUserAccess(req,input)}catch(e){return json(res,403,{error:e.message})}
-    // No ollamaReady() gate here on purpose: generateBook() already falls back to the
-    // template-based generator when Ollama is unreachable or errors out, so generation
-    // must keep working whether or not Ollama is running.
+    // No pre-flight readiness gate here on purpose: generateBook() already falls back
+    // Groq -> Gemini -> template generator when a provider is unconfigured or errors
+    // out, so generation must keep working even if neither API key is set.
     const clientAbort=new AbortController();
     res.on("close",()=>{if(!res.writableEnded)clientAbort.abort()});
     try{
@@ -758,4 +804,4 @@ async function api(req,res,pathname){
 }
 const mime={".html":"text/html; charset=utf-8",".css":"text/css; charset=utf-8",".js":"application/javascript; charset=utf-8",".json":"application/json; charset=utf-8"};
 function staticFile(res,pathname){const rel=pathname==="/"?"index.html":pathname.slice(1),abs=path.resolve(ROOT,rel);if(!abs.startsWith(ROOT)||!fs.existsSync(abs)||fs.statSync(abs).isDirectory()){res.writeHead(404);return res.end("Not found")}res.writeHead(200,{"Content-Type":mime[path.extname(abs)]||"application/octet-stream","Cache-Control":"no-cache"});fs.createReadStream(abs).pipe(res)}
-http.createServer(async(req,res)=>{try{const u=new URL(req.url,`http://${req.headers.host}`);if(u.pathname.startsWith("/api/"))return await api(req,res,u.pathname);staticFile(res,u.pathname)}catch(e){console.error(e);json(res,500,{error:e.message})}}).listen(PORT,"127.0.0.1",()=>console.log(`BrightBook http://127.0.0.1:${PORT} · ${MODEL}`));
+http.createServer(async(req,res)=>{try{const u=new URL(req.url,`http://${req.headers.host}`);if(u.pathname.startsWith("/api/"))return await api(req,res,u.pathname);staticFile(res,u.pathname)}catch(e){console.error(e);json(res,500,{error:e.message})}}).listen(PORT,"127.0.0.1",()=>console.log(`BrightBook http://127.0.0.1:${PORT} · Groq:${groqReady()?GROQ_MODEL:"not configured"} · Gemini:${geminiReady()?GEMINI_MODEL:"not configured"}`));

@@ -416,8 +416,9 @@ Generated kits should:
 
 ### Generation Mode
 
-- If Ollama is available, BrightBook should use Ollama for higher-quality generation.
-- If Ollama generation fails, BrightBook may fall back to fast generation.
+- If Groq is available, BrightBook should use Groq for higher-quality generation.
+- If Groq generation fails or is not configured, BrightBook should automatically retry with Gemini.
+- If both Groq and Gemini fail or are not configured, BrightBook may fall back to fast generation.
 - Fast generation must still return structurally valid activity pages.
 
 ## Future Improvements

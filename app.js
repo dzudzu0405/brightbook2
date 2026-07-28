@@ -287,7 +287,7 @@ $("#bookIdea")?.addEventListener("input",applyFeatureGates);
 $("#accountButton")?.addEventListener("click",e=>{e.stopPropagation();$("#accountMenu")?.classList.toggle("hidden")});
 document.addEventListener("click",e=>{if(!e.target.closest?.("#accountDock"))$("#accountMenu")?.classList.add("hidden")});
 $$("[data-template]").forEach(b=>b.addEventListener("click",()=>{$("#bookIdea").value=`${b.dataset.theme}: ${b.dataset.template}`;showView("creator");applyFeatureGates()}));
-async function health(){try{const d=await api("/api/health");engineReady=!!d.ollama;if(!engineReady)toast("Fast fallback mode","The local AI engine (Ollama) isn't ready, so kits will use the quick template generator instead.",8000)}catch{engineReady=false;toast("Connection unavailable","Please start the BrightBook service and try again.",8000)}finally{$("#generate").disabled=false}}
+async function health(){try{const d=await api("/api/health");engineReady=!!(d.groq||d.gemini);if(!engineReady)toast("Fast fallback mode","No AI provider (Groq or Gemini) is configured, so kits will use the quick template generator instead.",8000)}catch{engineReady=false;toast("Connection unavailable","Please start the BrightBook service and try again.",8000)}finally{$("#generate").disabled=false}}
 function settings(){
   const activityType=$("#activityType").value,genreType=$("#genreType").value;
   const wordSearchMode=activityType==="word-search"?genreType:"";
@@ -333,7 +333,8 @@ async function generateProductKit(){
   const timer=setInterval(()=>$("#loadingText").textContent=msgs[++i%msgs.length],5000);
   try{
     // Don't hard-block on engineReady: the backend already falls back to the template
-    // generator when Ollama is unreachable, so the request should always be attempted.
+    // generator when Groq/Gemini are unreachable or unconfigured, so the request should
+    // always be attempted.
     if(engineReady===false)await health();
     const d=await api("/api/generate",{method:"POST",body:JSON.stringify(currentSettings),signal:generationController.signal});
     current=d.book;

@@ -1,14 +1,13 @@
 # BrightBook Studio
 
-An educational activity book product-kit creator powered by a local Ollama model.
+An educational activity book product-kit creator powered by Groq (primary) and Gemini (fallback).
 
 BrightBook is positioned as a low-ticket, one-time front-end offer with optional OTO upgrades. Each generation creates a publishing kit, not just a prompt pack: page prompts, answer keys, cover direction, marketplace listing assets, quality checks, series ideas, and a launch checklist.
 
 ## Requirements
 
-- Ollama
-- Model `gemma3:4b`
 - Node.js 22+
+- A [Groq API key](https://console.groq.com/keys) and/or a [Gemini API key](https://aistudio.google.com/apikey) — either one is enough to get AI-drafted content; without either, BrightBook still works using the instant Fast Product Kit fallback.
 
 ## Run
 
@@ -28,21 +27,23 @@ Open:
 npm test
 ```
 
-Runs `node --test` against `test/`, which currently covers the word-search puzzle generator (grid shape, word placement correctness). These are pure functions with no server/database dependency, so the tests run without Ollama or the HTTP server.
+Runs `node --test` against `test/`, which currently covers the word-search puzzle generator (grid shape, word placement correctness). These are pure functions with no server/database dependency, so the tests run without Groq/Gemini or the HTTP server.
 
 ## Optional Configuration
 
 ```powershell
-$env:OLLAMA_MODEL="gemma3:4b"
-$env:OLLAMA_URL="http://127.0.0.1:11434"
-$env:USE_OLLAMA_GENERATION="1"
+$env:GROQ_API_KEY="your-groq-key"
+$env:GROQ_MODEL="llama-3.3-70b-versatile"
+$env:GEMINI_API_KEY="your-gemini-key"
+$env:GEMINI_MODEL="gemini-flash-latest"
+$env:USE_AI_GENERATION="1"
 $env:PORT="4180"
 node server.js
 ```
 
-The application does not call the OpenAI API. Project data is stored in `data/brightbook.db`.
+Project data is stored in `data/brightbook.db`.
 
-By default, BrightBook uses local Ollama generation for stronger page concepts and image prompts. Set `USE_OLLAMA_GENERATION=0` only when you want instant Fast Product Kit mode for demos.
+By default, BrightBook tries Groq first for stronger page concepts and image prompts. If Groq fails or `GROQ_API_KEY` isn't set, it automatically retries with Gemini. If both fail or neither key is configured, it falls back to the instant, template-based Fast Product Kit mode — generation always succeeds. Set `USE_AI_GENERATION=0` to always use Fast Product Kit mode, skipping both AI providers.
 
 ## Admin, Users, One-Time Plans, Features, and Usage History
 
