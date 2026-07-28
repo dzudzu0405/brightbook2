@@ -1,0 +1,11 @@
+DirectoryIndex index.html
+
+<IfModule mod_rewrite.c>
+  RewriteEngine On
+  RewriteRule ^api/ index.php [QSA,L]
+</IfModule>
+
+# Never serve the source PHP libraries or SQLite database directly.
+<FilesMatch "\.(db|db-shm|db-wal)$">
+  Require all denied
+</FilesMatch>

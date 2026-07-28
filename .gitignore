@@ -1,5 +1,7 @@
 data/*.db
 data/*.db-*
+php/data/*.db
+php/data/*.db-*
 *.log
 node_modules/
 .env
