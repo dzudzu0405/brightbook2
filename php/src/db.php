@@ -3,9 +3,11 @@ declare(strict_types=1);
 
 // PHP has no persistent process like the Node version (which re-seeds on every
 // server start). Schema creation is cheap and safe to run on every request
-// (CREATE TABLE IF NOT EXISTS). seed_billing() is NOT auto-run here since it
-// does real writes on every call - run it once after each deploy via
-// public/migrate.php instead.
+// (CREATE TABLE IF NOT EXISTS). bb_seed_billing() only runs its real writes
+// once, automatically, the first time the plans table is empty (see the end
+// of bb_db()) - no manual admin-token-gated setup step required. It can still
+// be re-run any time via public/migrate.php if you add new plans/features
+// later and want existing rows re-synced.
 
 function bb_db(): PDO {
     static $db = null;
@@ -76,6 +78,9 @@ function bb_db(): PDO {
             FOREIGN KEY(feature_id) REFERENCES features(id)
         );
     ");
+
+    $planCount = (int)$db->query('SELECT COUNT(*) AS c FROM plans')->fetch()['c'];
+    if ($planCount === 0) bb_seed_billing($db);
 
     return $db;
 }

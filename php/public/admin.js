@@ -16,6 +16,29 @@ async function loadPlans(){
   plans=d.items;
   $("#userPlan").innerHTML=plans.map(p=>`<option value="${p.id}">${esc(p.name)}</option>`).join("");
   $("#featurePlan").innerHTML=plans.map(p=>`<option value="${p.id}">${esc(p.name)}</option>`).join("");
+  renderPlansTable();
+}
+function renderPlansTable(){
+  $("#plansTable").innerHTML=plans.map(p=>`
+    <tr>
+      <td><input data-plan-name="${p.id}" value="${esc(p.name)}"></td>
+      <td><input data-plan-price="${p.id}" type="number" min="0" step="0.01" value="${(p.priceCents/100).toFixed(2)}"></td>
+      <td><input data-plan-limit="${p.id}" type="number" min="0" value="${p.monthlyPromptLimit}"></td>
+      <td><input data-plan-active="${p.id}" type="checkbox" ${p.active?"checked":""}></td>
+      <td><button data-plan-save="${p.id}">Save</button></td>
+    </tr>`).join("");
+  $$("[data-plan-save]").forEach(b=>b.addEventListener("click",async()=>{
+    try{
+      const id=b.dataset.planSave;
+      const name=document.querySelector(`[data-plan-name="${id}"]`).value;
+      const priceCents=Math.round(Number(document.querySelector(`[data-plan-price="${id}"]`).value||0)*100);
+      const monthlyPromptLimit=Number(document.querySelector(`[data-plan-limit="${id}"]`).value||0);
+      const active=document.querySelector(`[data-plan-active="${id}"]`).checked;
+      await api(`/api/admin/plans/${id}`,{method:"PATCH",body:JSON.stringify({name,priceCents,monthlyPromptLimit,active})});
+      toast("Plan updated");
+      await refresh();
+    }catch(e){toast("Unable to update plan",e.message)}
+  }));
 }
 async function loadFeatures(){
   const d=await api("/api/admin/features");
