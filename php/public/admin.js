@@ -67,9 +67,16 @@ async function loadUsers(){
       <td>${u.used} generated<small>history only, not credit</small></td>
       <td><select data-status="${u.id}"><option ${u.status==="active"?"selected":""}>active</option><option ${u.status==="paused"?"selected":""}>paused</option></select></td>
       <td><code>${esc(u.token)}</code></td>
-      <td><button data-copy="${esc(u.token)}">Copy</button><button data-save="${u.id}">Save</button></td>
+      <td><button data-copy="${esc(u.token)}">Copy</button><button data-save="${u.id}">Save</button><button data-reset-link="${esc(u.resetToken||"")}">Reset Link</button></td>
     </tr>`).join("");
   $$("[data-copy]").forEach(b=>b.addEventListener("click",async()=>{await navigator.clipboard.writeText(b.dataset.copy);toast("Token copied")}));
+  $$("[data-reset-link]").forEach(b=>b.addEventListener("click",async()=>{
+    const token=b.dataset.resetLink;
+    if(!token){toast("No pending reset request","This user has not requested a password reset.");return}
+    const url=`${location.origin}/reset-password.html?token=${encodeURIComponent(token)}`;
+    await navigator.clipboard.writeText(url);
+    toast("Reset link copied","Send this link to the customer - it expires 1 hour after they requested it.");
+  }));
   $$("[data-save]").forEach(b=>b.addEventListener("click",async()=>{
     try{
       const id=b.dataset.save;const status=document.querySelector(`[data-status="${id}"]`).value;const planId=Number(document.querySelector(`[data-plan="${id}"]`).value);

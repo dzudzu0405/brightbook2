@@ -79,6 +79,13 @@ function bb_db(): PDO {
         );
     ");
 
+    // SQLite has no "ADD COLUMN IF NOT EXISTS", so check PRAGMA table_info first.
+    // Added after the original users table shipped without password support.
+    $userCols = array_column($db->query('PRAGMA table_info(users)')->fetchAll(), 'name');
+    if (!in_array('password_hash', $userCols, true)) $db->exec('ALTER TABLE users ADD COLUMN password_hash TEXT');
+    if (!in_array('reset_token', $userCols, true)) $db->exec('ALTER TABLE users ADD COLUMN reset_token TEXT');
+    if (!in_array('reset_token_expires_at', $userCols, true)) $db->exec('ALTER TABLE users ADD COLUMN reset_token_expires_at TEXT');
+
     $planCount = (int)$db->query('SELECT COUNT(*) AS c FROM plans')->fetch()['c'];
     if ($planCount === 0) bb_seed_billing($db);
 

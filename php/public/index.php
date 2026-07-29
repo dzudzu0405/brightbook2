@@ -206,20 +206,63 @@ if ($pathname === '/api/me' && $method === 'GET') {
     bb_json_response(200, ['user' => bb_public_user($db, bb_reset_period_if_needed($db, $user))]);
 }
 
-// Email-only entry point for customers: no password or token to manage. First
-// visit auto-creates a Starter-plan account; upgrades/disables happen later
-// from the admin panel once the seller matches the email against a sale.
-if ($pathname === '/api/login' && $method === 'POST') {
+// New accounts always start on Starter; upgrades/disables happen later from
+// the admin panel once the seller matches the email against a sale.
+if ($pathname === '/api/signup' && $method === 'POST') {
     $email = trim((string)($body['email'] ?? ''));
+    $password = (string)($body['password'] ?? '');
     if ($email === '' || !filter_var($email, FILTER_VALIDATE_EMAIL)) {
         bb_json_response(400, ['error' => 'Please enter a valid email address.']);
     }
+    if (strlen($password) < 8) {
+        bb_json_response(400, ['error' => 'Password must be at least 8 characters.']);
+    }
     try {
-        $user = bb_login_or_create_user($db, $email);
+        $user = bb_signup($db, $email, $password);
+    } catch (BBAccessException $e) {
+        bb_json_response(409, ['error' => $e->getMessage()]);
     } catch (Throwable $e) {
         bb_json_response(500, ['error' => $e->getMessage()]);
     }
+    bb_json_response(201, ['user' => bb_public_user($db, bb_reset_period_if_needed($db, $user))]);
+}
+
+if ($pathname === '/api/login' && $method === 'POST') {
+    $email = trim((string)($body['email'] ?? ''));
+    $password = (string)($body['password'] ?? '');
+    if ($email === '' || $password === '') {
+        bb_json_response(400, ['error' => 'Please enter your email and password.']);
+    }
+    try {
+        $user = bb_login_with_password($db, $email, $password);
+    } catch (BBAccessException $e) {
+        bb_json_response(401, ['error' => $e->getMessage()]);
+    }
     bb_json_response(200, ['user' => bb_public_user($db, bb_reset_period_if_needed($db, $user))]);
+}
+
+// No mail service configured - this never reveals whether the email exists.
+// The seller looks up the generated reset token in the admin panel and sends
+// it to the customer manually (see bb_request_password_reset()).
+if ($pathname === '/api/forgot-password' && $method === 'POST') {
+    $email = trim((string)($body['email'] ?? ''));
+    if ($email !== '' && filter_var($email, FILTER_VALIDATE_EMAIL)) {
+        bb_request_password_reset($db, $email);
+    }
+    bb_json_response(200, ['ok' => true, 'message' => 'If that email has an account, our team will be in touch with a reset link shortly.']);
+}
+
+if ($pathname === '/api/reset-password' && $method === 'POST') {
+    $token = trim((string)($body['token'] ?? ''));
+    $password = (string)($body['password'] ?? '');
+    if ($token === '') bb_json_response(400, ['error' => 'Missing reset token.']);
+    if (strlen($password) < 8) bb_json_response(400, ['error' => 'Password must be at least 8 characters.']);
+    try {
+        bb_reset_password($db, $token, $password);
+    } catch (BBAccessException $e) {
+        bb_json_response(400, ['error' => $e->getMessage()]);
+    }
+    bb_json_response(200, ['ok' => true]);
 }
 
 if ($pathname === '/api/generate' && $method === 'POST') {

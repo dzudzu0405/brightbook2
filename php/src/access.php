@@ -53,24 +53,55 @@ function bb_user_with_plan_by_email(PDO $db, string $email): ?array {
     return $row ?: null;
 }
 
-// Email-only login for WarriorPlus-style delivery: no password or access token
-// for the customer to manage. First visit auto-creates a Starter-plan account;
-// the seller upgrades or disables the account afterward from the admin panel
-// once they match the buyer's email against their WarriorPlus sales.
-function bb_login_or_create_user(PDO $db, string $email): array {
+// Self-service signup: new accounts always start on Starter. The seller
+// upgrades or disables the account afterward from the admin panel once they
+// match the buyer's email against their WarriorPlus sales.
+function bb_signup(PDO $db, string $email, string $password): array {
     $email = strtolower(trim($email));
-    $existing = bb_user_with_plan_by_email($db, $email);
-    if ($existing) return $existing;
+    if (bb_user_with_plan_by_email($db, $email)) {
+        throw new BBAccessException('An account with that email already exists. Please log in instead.');
+    }
 
     $planStmt = $db->prepare("SELECT id FROM plans WHERE name = ? AND active = 1");
     $planStmt->execute(['Starter']);
     $plan = $planStmt->fetch();
     if (!$plan) throw new BBAccessException('No starter plan is configured yet. Please contact support.');
 
-    $db->prepare("INSERT INTO users(email,name,access_token,plan_id,status) VALUES(?,?,?,?,?)")
-        ->execute([$email, '', bb_gen_token('bb_user'), $plan['id'], 'active']);
+    $db->prepare("INSERT INTO users(email,name,access_token,plan_id,status,password_hash) VALUES(?,?,?,?,?,?)")
+        ->execute([$email, '', bb_gen_token('bb_user'), $plan['id'], 'active', password_hash($password, PASSWORD_DEFAULT)]);
 
     return bb_user_with_plan_by_email($db, $email);
+}
+
+function bb_login_with_password(PDO $db, string $email, string $password): array {
+    $user = bb_user_with_plan_by_email($db, strtolower(trim($email)));
+    if (!$user || empty($user['password_hash']) || !password_verify($password, $user['password_hash'])) {
+        throw new BBAccessException('Incorrect email or password.');
+    }
+    return $user;
+}
+
+// Doesn't send email (no mail service configured) - generates a token the
+// seller retrieves from the admin panel and passes along to the customer
+// manually. Silently no-ops for unknown emails so the response never reveals
+// which addresses have accounts.
+function bb_request_password_reset(PDO $db, string $email): void {
+    $user = bb_user_with_plan_by_email($db, strtolower(trim($email)));
+    if (!$user) return;
+    $token = bb_gen_token('reset');
+    $expiresAt = date('Y-m-d H:i:s', time() + 3600);
+    $db->prepare("UPDATE users SET reset_token=?, reset_token_expires_at=? WHERE id=?")->execute([$token, $expiresAt, $user['id']]);
+}
+
+function bb_reset_password(PDO $db, string $token, string $newPassword): void {
+    $stmt = $db->prepare("SELECT * FROM users WHERE reset_token = ?");
+    $stmt->execute([trim($token)]);
+    $user = $stmt->fetch();
+    if (!$user || strtotime((string)$user['reset_token_expires_at']) < time()) {
+        throw new BBAccessException('This reset link is invalid or has expired. Please request a new one.');
+    }
+    $db->prepare("UPDATE users SET password_hash=?, reset_token=NULL, reset_token_expires_at=NULL WHERE id=?")
+        ->execute([password_hash($newPassword, PASSWORD_DEFAULT), $user['id']]);
 }
 
 function bb_reset_period_if_needed(PDO $db, array $user): array {
@@ -142,6 +173,7 @@ function bb_record_usage(PDO $db, array $user, int $units, array $metadata = [])
 
 function bb_public_user(PDO $db, array $user): array {
     $usage = bb_usage_for_user($db, $user);
+    $resetValid = !empty($user['reset_token']) && strtotime((string)($user['reset_token_expires_at'] ?? '')) > time();
     return [
         'id' => (int)$user['id'], 'email' => $user['email'], 'name' => $user['name'],
         'token' => $user['access_token'], 'planId' => (int)$user['plan_id'], 'planName' => $user['plan_name'],
@@ -150,6 +182,11 @@ function bb_public_user(PDO $db, array $user): array {
         'features' => bb_plan_feature_keys($db, (int)$user['plan_id']),
         'usageLimitOverride' => $user['usage_limit_override'] !== null ? (float)$user['usage_limit_override'] : null,
         'createdAt' => $user['created_at'],
+        // No mail service is configured - the admin panel reads these to hand
+        // a reset link to the customer manually. Harmless on /api/me too since
+        // it's only ever the account's own pending reset request.
+        'resetToken' => $resetValid ? $user['reset_token'] : null,
+        'resetTokenExpiresAt' => $resetValid ? $user['reset_token_expires_at'] : null,
     ];
 }
 

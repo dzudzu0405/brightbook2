@@ -25,21 +25,35 @@
     <div class="float-icon login-fi-4">♪</div>
 
     <div class="login-card">
-      <div class="login-badge">✦ One-time access, lifetime use</div>
+      <div class="login-badge" id="loginBadge">✦ One-time access, lifetime use</div>
       <div class="login-icon">✦</div>
-      <h1>Log in to BrightBook</h1>
-      <p>Enter the email you used to purchase to open your workspace.</p>
+      <h1 id="loginTitle">Log in to BrightBook</h1>
+      <p id="loginSubtitle">Enter your email and password to open your workspace.</p>
 
       <form id="loginForm" novalidate>
         <label>
           <span>Email Address</span>
           <input type="email" id="emailInput" placeholder="you@example.com" autocomplete="email">
         </label>
+        <label id="passwordField">
+          <span>Password</span>
+          <input type="password" id="passwordInput" placeholder="••••••••" autocomplete="current-password">
+        </label>
+        <label id="confirmField" class="hidden">
+          <span>Confirm Password</span>
+          <input type="password" id="confirmInput" placeholder="••••••••" autocomplete="new-password">
+        </label>
+
+        <a href="#" id="forgotLink" class="login-forgot-link">Forgot password?</a>
+
         <button type="submit" class="hero-primary login-submit" id="loginSubmit">Log In <span>→</span></button>
         <p class="login-error hidden" id="loginError"></p>
+        <p class="login-success hidden" id="loginSuccess"></p>
       </form>
 
-      <p class="login-footnote">No password needed — your workspace is created automatically on first login.</p>
+      <p class="login-footnote" id="loginSwitchLine">
+        Don't have an account? <a href="#" id="switchToSignup">Sign up</a>
+      </p>
     </div>
   </main>
 
@@ -47,59 +61,145 @@
     (function () {
       const STORAGE_KEY = "brightbookUserToken";
       const form = document.getElementById("loginForm");
-      const input = document.getElementById("emailInput");
+      const emailInput = document.getElementById("emailInput");
+      const passwordInput = document.getElementById("passwordInput");
+      const confirmInput = document.getElementById("confirmInput");
+      const passwordField = document.getElementById("passwordField");
+      const confirmField = document.getElementById("confirmField");
+      const forgotLink = document.getElementById("forgotLink");
       const errorEl = document.getElementById("loginError");
+      const successEl = document.getElementById("loginSuccess");
       const submitBtn = document.getElementById("loginSubmit");
+      const title = document.getElementById("loginTitle");
+      const subtitle = document.getElementById("loginSubtitle");
+      const switchLine = document.getElementById("loginSwitchLine");
+      const switchToSignup = document.getElementById("switchToSignup");
+
+      let mode = "login"; // "login" | "signup" | "forgot"
 
       function showError(message) {
+        successEl.classList.add("hidden");
         errorEl.textContent = message;
         errorEl.classList.remove("hidden");
       }
-
-      function clearError() {
+      function showSuccess(message) {
         errorEl.classList.add("hidden");
+        successEl.textContent = message;
+        successEl.classList.remove("hidden");
       }
-
-      function setLoading(loading) {
+      function clearMessages() {
+        errorEl.classList.add("hidden");
+        successEl.classList.add("hidden");
+      }
+      function setLoading(loading, labelWhenDone) {
         submitBtn.disabled = loading;
-        submitBtn.innerHTML = loading ? "Checking..." : "Log In <span>→</span>";
+        submitBtn.innerHTML = loading ? "Please wait..." : labelWhenDone;
       }
 
-      async function logIn(email, { silent = false } = {}) {
-        if (!email) return false;
-        if (!silent) { clearError(); setLoading(true); }
-        try {
-          const res = await fetch("/api/login", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ email }),
-          });
-          const data = await res.json().catch(() => ({}));
-          if (!res.ok) throw new Error(data.error || "That email did not work. Please try again.");
-          localStorage.setItem(STORAGE_KEY, data.user.token);
-          location.href = "app.html";
-          return true;
-        } catch (err) {
-          if (!silent) showError(err.message);
-          return false;
-        } finally {
-          if (!silent) setLoading(false);
+      function setMode(next) {
+        mode = next;
+        clearMessages();
+        if (mode === "login") {
+          title.textContent = "Log in to BrightBook";
+          subtitle.textContent = "Enter your email and password to open your workspace.";
+          passwordField.classList.remove("hidden");
+          confirmField.classList.add("hidden");
+          forgotLink.classList.remove("hidden");
+          submitBtn.innerHTML = "Log In <span>→</span>";
+          switchLine.innerHTML = 'Don\'t have an account? <a href="#" id="switchToSignup">Sign up</a>';
+        } else if (mode === "signup") {
+          title.textContent = "Create your account";
+          subtitle.textContent = "Sign up once to unlock your workspace.";
+          passwordField.classList.remove("hidden");
+          confirmField.classList.remove("hidden");
+          forgotLink.classList.add("hidden");
+          submitBtn.innerHTML = "Sign Up <span>→</span>";
+          switchLine.innerHTML = 'Already have an account? <a href="#" id="switchToSignup">Log in</a>';
+        } else {
+          title.textContent = "Reset your password";
+          subtitle.textContent = "Enter your email and we'll get a reset link to you.";
+          passwordField.classList.add("hidden");
+          confirmField.classList.add("hidden");
+          forgotLink.classList.add("hidden");
+          submitBtn.innerHTML = "Send Reset Link <span>→</span>";
+          switchLine.innerHTML = 'Remembered it? <a href="#" id="switchToSignup">Log in</a>';
         }
+        // The switch link is re-created each time - re-bind its handler.
+        document.getElementById("switchToSignup").addEventListener("click", (e) => {
+          e.preventDefault();
+          setMode(mode === "signup" || mode === "forgot" ? "login" : "signup");
+        });
       }
 
-      // Purchase-delivery links can pre-fill and auto-log-in via ?email=...
-      const qsEmail = new URLSearchParams(location.search).get("email");
-      if (qsEmail) {
-        input.value = qsEmail;
-        logIn(qsEmail);
-      }
-
-      form.addEventListener("submit", (e) => {
+      forgotLink.addEventListener("click", (e) => {
         e.preventDefault();
-        const email = input.value.trim();
-        if (!email) { showError("Please enter your email address."); return; }
-        logIn(email);
+        setMode("forgot");
       });
+
+      async function submitLogin(email, password) {
+        const res = await fetch("/api/login", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ email, password }),
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(data.error || "Incorrect email or password.");
+        localStorage.setItem(STORAGE_KEY, data.user.token);
+        location.href = "app.html";
+      }
+
+      async function submitSignup(email, password) {
+        const res = await fetch("/api/signup", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ email, password }),
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(data.error || "Could not create your account.");
+        localStorage.setItem(STORAGE_KEY, data.user.token);
+        location.href = "app.html";
+      }
+
+      async function submitForgot(email) {
+        const res = await fetch("/api/forgot-password", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ email }),
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(data.error || "Something went wrong. Please try again.");
+        showSuccess(data.message || "If that email has an account, our team will be in touch shortly.");
+      }
+
+      form.addEventListener("submit", async (e) => {
+        e.preventDefault();
+        clearMessages();
+        const email = emailInput.value.trim();
+        const password = passwordInput.value;
+        if (!email) { showError("Please enter your email address."); return; }
+
+        try {
+          if (mode === "forgot") {
+            setLoading(true);
+            await submitForgot(email);
+          } else if (mode === "signup") {
+            if (password.length < 8) { showError("Password must be at least 8 characters."); return; }
+            if (password !== confirmInput.value) { showError("Passwords do not match."); return; }
+            setLoading(true);
+            await submitSignup(email, password);
+          } else {
+            if (!password) { showError("Please enter your password."); return; }
+            setLoading(true);
+            await submitLogin(email, password);
+          }
+        } catch (err) {
+          showError(err.message);
+        } finally {
+          setLoading(false, mode === "signup" ? "Sign Up <span>→</span>" : mode === "forgot" ? "Send Reset Link <span>→</span>" : "Log In <span>→</span>");
+        }
+      });
+
+      setMode("login");
     })();
   </script>
 </body>

@@ -9,6 +9,7 @@ DirectoryIndex public/index.html
   RewriteRule ^app\.js$ public/app.js [L]
   RewriteRule ^index\.html$ public/index.html [L]
   RewriteRule ^login\.html$ public/login.html [L]
+  RewriteRule ^reset-password\.html$ public/reset-password.html [L]
   RewriteRule ^migrate\.php$ public/migrate.php [L]
   RewriteRule ^styles\.css$ public/styles.css [L]
 </IfModule>
