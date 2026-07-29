@@ -109,21 +109,21 @@
       <div class="pricing-grid">
         <article>
           <h3>Starter</h3>
-          <strong>$27</strong>
+          <strong data-plan-price="Starter">$27</strong>
           <p>One-time entry for creating your first product kits.</p>
           <ul><li>Coloring + word search</li><li>25 pages per kit</li><li>Basic exports and starter themes</li></ul>
           <a href="app.html">Start Now</a>
         </article>
         <article class="featured-plan">
           <h3>Pro</h3>
-          <strong>$47</strong>
+          <strong data-plan-price="Pro">$47</strong>
           <p>One-time upgrade for sellers building a catalog.</p>
           <ul><li>Tracing, matching, counting</li><li>30 pages per kit</li><li>Advanced direction controls</li></ul>
           <a href="app.html">Get Creator</a>
         </article>
         <article>
           <h3>Publisher</h3>
-          <strong>$67</strong>
+          <strong data-plan-price="Publisher">$67</strong>
           <p>One-time upgrade for marketplace launch assets.</p>
           <ul><li>Worksheet packs + save projects</li><li>KDP/Etsy listing kit</li><li>Launch checklist and export packet</li></ul>
           <a href="app.html">Go Pro</a>
@@ -133,5 +133,14 @@
   </main>
 
   <a class="chat-bubble" href="app.html">▱</a>
+
+  <script>
+    fetch("/api/pricing").then(r => r.json()).then(d => {
+      (d.items || []).forEach(p => {
+        const el = document.querySelector(`[data-plan-price="${p.name}"]`);
+        if (el) el.textContent = "$" + (p.priceCents / 100).toFixed(p.priceCents % 100 === 0 ? 0 : 2);
+      });
+    }).catch(() => {});
+  </script>
 </body>
 </html>

@@ -191,6 +191,15 @@ if ($pathname === '/api/catalog' && $method === 'GET') {
     bb_json_response(200, ['activities' => $activities, 'themes' => $themes, 'genres' => $genres, 'wordSearchModes' => WORD_SEARCH_MODE_TYPES]);
 }
 
+// Public, no admin token - the landing page reads this to keep its pricing
+// cards in sync with whatever the seller sets in the admin panel, instead of
+// prices being hardcoded twice (once in the database, once in index.html).
+if ($pathname === '/api/pricing' && $method === 'GET') {
+    $rows = $db->query("SELECT name, price_cents FROM plans WHERE active = 1 ORDER BY price_cents ASC")->fetchAll();
+    $items = array_map(fn($r) => ['name' => $r['name'], 'priceCents' => (int)$r['price_cents']], $rows);
+    bb_json_response(200, ['items' => $items]);
+}
+
 if ($pathname === '/api/me' && $method === 'GET') {
     $user = bb_user_with_plan_by_token($db, bb_client_token());
     if (!$user) bb_json_response(401, ['error' => 'Your account token is not valid.']);
