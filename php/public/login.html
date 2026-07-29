@@ -1,0 +1,106 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Log In — BrightBook AI</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body class="landing-body">
+  <nav class="landing-nav">
+    <a class="landing-brand" href="index.html">
+      <span>✦</span>
+      <strong>BrightBook AI</strong>
+    </a>
+    <div class="landing-actions" style="margin-left:auto">
+      <a class="link-login" href="index.html">← Back to site</a>
+    </div>
+  </nav>
+
+  <main class="login-main">
+    <div class="login-card">
+      <div class="login-icon">✦</div>
+      <h1>Log in to BrightBook</h1>
+      <p>Paste the access token from your purchase email to open your workspace.</p>
+
+      <form id="loginForm" novalidate>
+        <label>
+          <span>Access Token</span>
+          <input type="text" id="tokenInput" placeholder="bb_user_xxxxxxxxxxxxxxxx" autocomplete="off" spellcheck="false">
+        </label>
+        <button type="submit" class="hero-primary login-submit" id="loginSubmit">Log In <span>→</span></button>
+        <p class="login-error hidden" id="loginError"></p>
+      </form>
+
+      <div class="login-divider"><span>or</span></div>
+      <a class="login-demo" href="app.html">Try the free demo instead →</a>
+
+      <p class="login-help">Don't have a token yet? <a href="index.html#pricing">See pricing</a> or check the email from your purchase.</p>
+    </div>
+  </main>
+
+  <script>
+    (function () {
+      const STORAGE_KEY = "brightbookUserToken";
+      const form = document.getElementById("loginForm");
+      const input = document.getElementById("tokenInput");
+      const errorEl = document.getElementById("loginError");
+      const submitBtn = document.getElementById("loginSubmit");
+
+      function showError(message) {
+        errorEl.textContent = message;
+        errorEl.classList.remove("hidden");
+      }
+
+      function clearError() {
+        errorEl.classList.add("hidden");
+      }
+
+      function setLoading(loading) {
+        submitBtn.disabled = loading;
+        submitBtn.innerHTML = loading ? "Checking..." : "Log In <span>→</span>";
+      }
+
+      async function verifyToken(token) {
+        const res = await fetch("/api/me", { headers: { "x-user-token": token } });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(data.error || "That access token is not valid.");
+        return data;
+      }
+
+      async function logIn(token, { silent = false } = {}) {
+        if (!token) return false;
+        if (!silent) { clearError(); setLoading(true); }
+        try {
+          await verifyToken(token);
+          localStorage.setItem(STORAGE_KEY, token);
+          location.href = "app.html";
+          return true;
+        } catch (err) {
+          if (!silent) showError(err.message);
+          return false;
+        } finally {
+          if (!silent) setLoading(false);
+        }
+      }
+
+      // Magic-link support: a purchase email can link straight to ?token=... to auto-log-in.
+      const qsToken = new URLSearchParams(location.search).get("token");
+      if (qsToken) {
+        input.value = qsToken;
+        logIn(qsToken);
+      } else {
+        const stored = localStorage.getItem(STORAGE_KEY);
+        if (stored && stored !== "demo-token") input.value = stored;
+      }
+
+      form.addEventListener("submit", (e) => {
+        e.preventDefault();
+        const token = input.value.trim();
+        if (!token) { showError("Please enter your access token."); return; }
+        logIn(token);
+      });
+    })();
+  </script>
+</body>
+</html>
