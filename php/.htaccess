@@ -1,0 +1,19 @@
+DirectoryIndex public/index.html
+
+<IfModule mod_rewrite.c>
+  RewriteEngine On
+  RewriteRule ^api/(.*)$ public/index.php [QSA,L]
+  RewriteRule ^admin\.html$ public/admin.html [L]
+  RewriteRule ^admin\.js$ public/admin.js [L]
+  RewriteRule ^app\.html$ public/app.html [L]
+  RewriteRule ^app\.js$ public/app.js [L]
+  RewriteRule ^index\.html$ public/index.html [L]
+  RewriteRule ^login\.html$ public/login.html [L]
+  RewriteRule ^migrate\.php$ public/migrate.php [L]
+  RewriteRule ^styles\.css$ public/styles.css [L]
+</IfModule>
+
+<Files "config.php">
+  Require all denied
+</Files>
+Options -Indexes
