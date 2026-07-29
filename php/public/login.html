@@ -21,12 +21,12 @@
     <div class="login-card">
       <div class="login-icon">✦</div>
       <h1>Log in to BrightBook</h1>
-      <p>Paste the access token from your purchase email to open your workspace.</p>
+      <p>Enter the email you used to purchase to open your workspace.</p>
 
       <form id="loginForm" novalidate>
         <label>
-          <span>Access Token</span>
-          <input type="text" id="tokenInput" placeholder="bb_user_xxxxxxxxxxxxxxxx" autocomplete="off" spellcheck="false">
+          <span>Email Address</span>
+          <input type="email" id="emailInput" placeholder="you@example.com" autocomplete="email">
         </label>
         <button type="submit" class="hero-primary login-submit" id="loginSubmit">Log In <span>→</span></button>
         <p class="login-error hidden" id="loginError"></p>
@@ -35,7 +35,7 @@
       <div class="login-divider"><span>or</span></div>
       <a class="login-demo" href="app.html">Try the free demo instead →</a>
 
-      <p class="login-help">Don't have a token yet? <a href="index.html#pricing">See pricing</a> or check the email from your purchase.</p>
+      <p class="login-help">Haven't purchased yet? <a href="index.html#pricing">See pricing</a>.</p>
     </div>
   </main>
 
@@ -43,7 +43,7 @@
     (function () {
       const STORAGE_KEY = "brightbookUserToken";
       const form = document.getElementById("loginForm");
-      const input = document.getElementById("tokenInput");
+      const input = document.getElementById("emailInput");
       const errorEl = document.getElementById("loginError");
       const submitBtn = document.getElementById("loginSubmit");
 
@@ -61,19 +61,18 @@
         submitBtn.innerHTML = loading ? "Checking..." : "Log In <span>→</span>";
       }
 
-      async function verifyToken(token) {
-        const res = await fetch("/api/me", { headers: { "x-user-token": token } });
-        const data = await res.json().catch(() => ({}));
-        if (!res.ok) throw new Error(data.error || "That access token is not valid.");
-        return data;
-      }
-
-      async function logIn(token, { silent = false } = {}) {
-        if (!token) return false;
+      async function logIn(email, { silent = false } = {}) {
+        if (!email) return false;
         if (!silent) { clearError(); setLoading(true); }
         try {
-          await verifyToken(token);
-          localStorage.setItem(STORAGE_KEY, token);
+          const res = await fetch("/api/login", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ email }),
+          });
+          const data = await res.json().catch(() => ({}));
+          if (!res.ok) throw new Error(data.error || "That email did not work. Please try again.");
+          localStorage.setItem(STORAGE_KEY, data.user.token);
           location.href = "app.html";
           return true;
         } catch (err) {
@@ -84,21 +83,18 @@
         }
       }
 
-      // Magic-link support: a purchase email can link straight to ?token=... to auto-log-in.
-      const qsToken = new URLSearchParams(location.search).get("token");
-      if (qsToken) {
-        input.value = qsToken;
-        logIn(qsToken);
-      } else {
-        const stored = localStorage.getItem(STORAGE_KEY);
-        if (stored && stored !== "demo-token") input.value = stored;
+      // Purchase-delivery links can pre-fill and auto-log-in via ?email=...
+      const qsEmail = new URLSearchParams(location.search).get("email");
+      if (qsEmail) {
+        input.value = qsEmail;
+        logIn(qsEmail);
       }
 
       form.addEventListener("submit", (e) => {
         e.preventDefault();
-        const token = input.value.trim();
-        if (!token) { showError("Please enter your access token."); return; }
-        logIn(token);
+        const email = input.value.trim();
+        if (!email) { showError("Please enter your email address."); return; }
+        logIn(email);
       });
     })();
   </script>

@@ -25,12 +25,6 @@ function bb_read_body(): array {
     return is_array($decoded) ? $decoded : [];
 }
 
-function bb_gen_token(string $prefix = 'bb'): string {
-    $random = base64_encode(random_bytes(18));
-    $random = rtrim(strtr($random, '+/', '-_'), '=');
-    return "{$prefix}_{$random}";
-}
-
 function bb_admin_api(PDO $db, string $pathname, string $method, array $body): void {
     if (!bb_admin_allowed()) bb_json_response(401, ['error' => 'Admin token is required.']);
 
@@ -200,6 +194,22 @@ if ($pathname === '/api/catalog' && $method === 'GET') {
 if ($pathname === '/api/me' && $method === 'GET') {
     $user = bb_user_with_plan_by_token($db, bb_client_token());
     if (!$user) bb_json_response(401, ['error' => 'Your account token is not valid.']);
+    bb_json_response(200, ['user' => bb_public_user($db, bb_reset_period_if_needed($db, $user))]);
+}
+
+// Email-only entry point for customers: no password or token to manage. First
+// visit auto-creates a Starter-plan account; upgrades/disables happen later
+// from the admin panel once the seller matches the email against a sale.
+if ($pathname === '/api/login' && $method === 'POST') {
+    $email = trim((string)($body['email'] ?? ''));
+    if ($email === '' || !filter_var($email, FILTER_VALIDATE_EMAIL)) {
+        bb_json_response(400, ['error' => 'Please enter a valid email address.']);
+    }
+    try {
+        $user = bb_login_or_create_user($db, $email);
+    } catch (Throwable $e) {
+        bb_json_response(500, ['error' => $e->getMessage()]);
+    }
     bb_json_response(200, ['user' => bb_public_user($db, bb_reset_period_if_needed($db, $user))]);
 }
 

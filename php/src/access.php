@@ -25,6 +25,12 @@ function bb_client_token(array $input = []): string {
     return trim((string)$token);
 }
 
+function bb_gen_token(string $prefix = 'bb'): string {
+    $random = base64_encode(random_bytes(18));
+    $random = rtrim(strtr($random, '+/', '-_'), '=');
+    return "{$prefix}_{$random}";
+}
+
 function bb_user_with_plan_by_token(PDO $db, string $accessToken): ?array {
     $stmt = $db->prepare("
         SELECT users.*, plans.name AS plan_name, plans.monthly_prompt_limit, plans.active AS plan_active
@@ -34,6 +40,37 @@ function bb_user_with_plan_by_token(PDO $db, string $accessToken): ?array {
     $stmt->execute([$accessToken]);
     $row = $stmt->fetch();
     return $row ?: null;
+}
+
+function bb_user_with_plan_by_email(PDO $db, string $email): ?array {
+    $stmt = $db->prepare("
+        SELECT users.*, plans.name AS plan_name, plans.monthly_prompt_limit, plans.active AS plan_active
+        FROM users JOIN plans ON plans.id = users.plan_id
+        WHERE users.email = ?
+    ");
+    $stmt->execute([$email]);
+    $row = $stmt->fetch();
+    return $row ?: null;
+}
+
+// Email-only login for WarriorPlus-style delivery: no password or access token
+// for the customer to manage. First visit auto-creates a Starter-plan account;
+// the seller upgrades or disables the account afterward from the admin panel
+// once they match the buyer's email against their WarriorPlus sales.
+function bb_login_or_create_user(PDO $db, string $email): array {
+    $email = strtolower(trim($email));
+    $existing = bb_user_with_plan_by_email($db, $email);
+    if ($existing) return $existing;
+
+    $planStmt = $db->prepare("SELECT id FROM plans WHERE name = ? AND active = 1");
+    $planStmt->execute(['Starter']);
+    $plan = $planStmt->fetch();
+    if (!$plan) throw new BBAccessException('No starter plan is configured yet. Please contact support.');
+
+    $db->prepare("INSERT INTO users(email,name,access_token,plan_id,status) VALUES(?,?,?,?,?)")
+        ->execute([$email, '', bb_gen_token('bb_user'), $plan['id'], 'active']);
+
+    return bb_user_with_plan_by_email($db, $email);
 }
 
 function bb_reset_period_if_needed(PDO $db, array $user): array {
