@@ -286,6 +286,7 @@ $("#genreType").addEventListener("change",applyFeatureGates);
 $("#bookIdea")?.addEventListener("input",applyFeatureGates);
 $("#accountButton")?.addEventListener("click",e=>{e.stopPropagation();$("#accountMenu")?.classList.toggle("hidden")});
 document.addEventListener("click",e=>{if(!e.target.closest?.("#accountDock"))$("#accountMenu")?.classList.add("hidden")});
+$("#accountLogout")?.addEventListener("click",()=>{localStorage.removeItem("brightbookUserToken");location.href="login.html"});
 $$("[data-template]").forEach(b=>b.addEventListener("click",()=>{$("#bookIdea").value=`${b.dataset.theme}: ${b.dataset.template}`;showView("creator");applyFeatureGates()}));
 async function health(){try{const d=await api("/api/health");engineReady=!!(d.groq||d.gemini);if(!engineReady)toast("Fast fallback mode","No AI provider (Groq or Gemini) is configured, so kits will use the quick template generator instead.",8000)}catch{engineReady=false;toast("Connection unavailable","Please start the BrightBook service and try again.",8000)}finally{$("#generate").disabled=false}}
 function settings(){
