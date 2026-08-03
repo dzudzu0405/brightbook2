@@ -28,7 +28,11 @@ function bb_parse_word_search_content_items(array $contentItems): array {
     return ['words' => $words, 'rows' => $rows];
 }
 
-function bb_render_word_search_image(array $contentItems, string $title = 'Word Search'): string {
+// $transparent renders a see-through background (only the grid/letters/word
+// list are opaque) so it can be dropped as its own layer on top of a
+// separately AI-generated decorative background in Canva/Photoshop, instead
+// of the solid white page bb_render_word_search_image() normally produces.
+function bb_render_word_search_image(array $contentItems, string $title = 'Word Search', bool $transparent = false): string {
     if (!function_exists('imagecreatetruecolor')) {
         throw new BBWordSearchImageException('The GD image extension is not enabled on this server.');
     }
@@ -51,10 +55,18 @@ function bb_render_word_search_image(array $contentItems, string $title = 'Word 
     $height = $titleAreaHeight + $gridHeightPx + $wordListAreaHeight + $margin;
 
     $img = imagecreatetruecolor($width, $height);
-    $white = imagecolorallocate($img, 255, 255, 255);
+    if ($transparent) {
+        imagealphablending($img, false);
+        imagesavealpha($img, true);
+        $bg = imagecolorallocatealpha($img, 255, 255, 255, 127);
+        imagefill($img, 0, 0, $bg);
+        imagealphablending($img, true);
+    } else {
+        $bg = imagecolorallocate($img, 255, 255, 255);
+        imagefill($img, 0, 0, $bg);
+    }
     $ink = imagecolorallocate($img, 25, 30, 35);
     $gridLine = imagecolorallocate($img, 190, 196, 202);
-    imagefill($img, 0, 0, $white);
 
     $titleFont = 5;
     $titleText = strtoupper($title);

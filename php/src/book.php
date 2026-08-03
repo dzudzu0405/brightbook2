@@ -7,7 +7,7 @@ require_once __DIR__ . '/generators/word_search.php';
 
 const PRODUCT_RULES = [
     'coloring' => "COLORING BOOK CONTRACT\n- One clear focal scene per page with 1-4 large subjects.\n- Use bold black outlines, large closed shapes, generous white space, and low detail appropriate to the age group.\n- The image prompt must explicitly request black-and-white line art only and prohibit color, gray fill, shading, text, borders, and cropped subjects.",
-    'word-search' => "WORD SEARCH CONTRACT\n- Each page is a real printable word-search puzzle, not an illustration prompt pretending to be a puzzle.\n- Each page needs one unique theme subtopic and exactly 10 age-appropriate uppercase words, 3-10 letters each, no spaces, no punctuation.\n- content_items must include \"WORD LIST: ...\" and exactly 12 \"GRID ROW NN: ...\" entries. Every grid row must be 12 uppercase letters with spaces between letters.\n- The answer must list every hidden word with row, column, and direction using H, V, or D. Example: COW: row 2, col 4, direction H.\n- Every puzzle must include a mix of directions: at least 3 horizontal, at least 3 vertical, and at least 2 diagonal words.\n- The image_prompt must explicitly ask the image model to render the full 12 by 12 letter grid with the exact WORD LIST words hidden in it, plus a printed word list below the grid. Note for the seller: current AI image models are unreliable at exact letter/grid rendering, so treat this as best-effort and proofread the result before using it.",
+    'word-search' => "WORD SEARCH CONTRACT\n- Each page is a real printable word-search puzzle, not an illustration prompt pretending to be a puzzle.\n- Each page needs one unique theme subtopic and exactly 10 age-appropriate uppercase words, 3-10 letters each, no spaces, no punctuation.\n- content_items must include \"WORD LIST: ...\" and exactly 12 \"GRID ROW NN: ...\" entries. Every grid row must be 12 uppercase letters with spaces between letters.\n- The answer must list every hidden word with row, column, and direction using H, V, or D. Example: COW: row 2, col 4, direction H.\n- Every puzzle must include a mix of directions: at least 3 horizontal, at least 3 vertical, and at least 2 diagonal words.\n- image_prompt style depends on the selected image mode - follow the MASTER VISUAL PROMPT CONTRACT below exactly for which style to use.",
     'educational-story' => "EDUCATIONAL STORY CONTRACT\n- Build one connected story arc across all prompts: introduction, small challenge, attempts, resolution, and takeaway.\n- Keep the same recurring character design, clothing, colors, and personality on every page.\n- Each page is one concrete scene, advances the story, and teaches one gentle age-appropriate lesson.\n- The image prompt must restate the complete character lock whenever the recurring character appears.",
     'tracing' => "TRACING & HANDWRITING CONTRACT\n- State the exact strokes, letters, numbers, or words to trace.\n- Progress gradually from guided examples to independent practice.\n- Request thick dotted tracing guides, clear baselines, large spacing, and minimal decoration.",
     'matching' => "MATCHING CONTRACT\n- Include 4-8 exact pairs, with left and right columns deliberately shuffled.\n- content_items must define every pair and the displayed order. The answer must repeat all correct matches.\n- Keep the center area open for children to draw connecting lines.",
@@ -56,10 +56,20 @@ function bb_lock_image_prompt(string $prompt, array &$input, array $words = []):
     $themeOrTopic = $input['theme'] ?: ($input['topic'] ?? '');
 
     if ($activityType === 'word-search') {
-        // Best-effort: current AI image models are unreliable at exact letter/grid
-        // rendering, so this will often need proofreading or a retry. Asked for
-        // explicitly (the seller wants one AI-generated image, not an image+layout
-        // compositing step) rather than the blank-frame-for-later-layout design.
+        $imageMode = $input['wordSearchImageMode'] ?? 'single-prompt';
+        if ($imageMode === 'frame-overlay') {
+            // The seller overlays the app's own code-rendered transparent grid PNG
+            // (POST /api/word-search-image with transparent:true) on top of this
+            // image themselves, so it must stay a blank frame - same shape as the
+            // other worksheet-frame activity types below.
+            return "Create a clean printable word-search worksheet frame for children, vertical A4 portrait composition.\n\n"
+                . "Scene decoration: {$scene}. Use only small {$themeOrTopic} themed border illustrations in the corners and margins, with a large blank central rectangle reserved for a word-search grid that will be added later by the seller.\n\n"
+                . "Layout requirements: clear title-safe area at the top, word-list area below or beside the blank grid space, generous margins, simple child-friendly decorative icons, balanced worksheet composition, no busy background behind the puzzle area.\n\n"
+                . "Critical text rule: do not render any letters, words, puzzle grid, answer key, labels, captions, signage, typography, watermark, logo, or random symbols anywhere in the image.\n\n"
+                . "Negative prompt: letters, words, text, typography, alphabet, numbers, grid letters, word search grid, answer key, labels, captions, signs, watermark, logo, clutter, cropped layout, photorealism, 3D render.";
+        }
+        // single-prompt: best-effort - current AI image models are unreliable at exact
+        // letter/grid rendering, so this will often need proofreading or a retry.
         $wordList = implode(', ', $words);
         $wordsLine = $wordList !== ''
             ? "The grid must hide exactly these words, reading forward horizontally, vertically, or diagonally: {$wordList}."
@@ -344,10 +354,10 @@ function bb_build_prompt(array $input, int $startPage, int $batchCount, array $p
         . "PRODUCT-SPECIFIC RULES\n" . bb_product_rules($input['activityType']) . "\n\n"
         . "MASTER VISUAL PROMPT CONTRACT\n"
         . "- Write image_prompt like a professional AI image prompt, similar to a Midjourney / Ideogram / ChatGPT image prompt.\n"
-        . ($input['activityType'] === 'word-search'
+        . ($input['activityType'] === 'word-search' && ($input['wordSearchImageMode'] ?? 'single-prompt') === 'single-prompt'
             ? "- The image itself must BE the puzzle: describe a complete 12 by 12 grid of bold, perfectly legible uppercase letters hiding the exact WORD LIST words, with a printed word list below the grid and only small decorative icons in the outer margins.\n"
               . "- State explicitly that current AI image models are unreliable at exact letter/grid rendering, so this is best-effort - do not describe a blank/empty grid area for later layout software.\n\n"
-            : (in_array($input['activityType'], ['matching', 'simple-math', 'puzzle', 'learning-worksheet', 'tracing'], true)
+            : (in_array($input['activityType'], ['word-search', 'matching', 'simple-math', 'puzzle', 'learning-worksheet', 'tracing'], true)
                 ? "- This activity type is laid out by separate software after generation: the image itself must stay a mostly EMPTY decorative frame, not an illustrated scene.\n"
                   . "- The image_prompt scene body must be 20-40 words describing ONLY small margin/border decorations (simple theme-related icons or motifs). Do NOT describe any character, person, animal performing an action, facial expression, clothing/costume, or props being used - those belong in content_items/answer text, never in the image.\n"
                   . "- Explicitly state in the scene body that the central/working area of the page must stay blank/empty for content added later by layout software.\n\n"
@@ -374,7 +384,7 @@ function bb_build_prompt(array $input, int $startPage, int $batchCount, array $p
         . "15. Respect the user book idea as a niche direction, but keep every page anchored to the selected theme and activity type.\n"
         . "16. Respect special direction and exclude/avoid constraints unless they conflict with child safety or printable quality.\n"
         . "17. Translate the requested illustration style into English inside image prompts. Do not put non-English style phrases in image prompts.\n"
-        . "18. For coloring, counting, spot-difference, and educational-story pages, every image prompt must explicitly describe subjects, action, expression, clothing/costumes if relevant, props, background, composition, printable A4 portrait layout, and the selected type/genre direction. For matching, simple-math, puzzle, learning-worksheet, and tracing pages, the image prompt must describe ONLY a blank decorative frame (small border icons, no characters or props performing anything). For word-search pages, the image prompt must describe the full letter grid with the exact hidden words, as required in the MASTER VISUAL PROMPT CONTRACT above.\n"
+        . "18. For coloring, counting, spot-difference, and educational-story pages, every image prompt must explicitly describe subjects, action, expression, clothing/costumes if relevant, props, background, composition, printable A4 portrait layout, and the selected type/genre direction. For matching, simple-math, puzzle, learning-worksheet, and tracing pages, the image prompt must describe ONLY a blank decorative frame (small border icons, no characters or props performing anything). For word-search pages, follow the MASTER VISUAL PROMPT CONTRACT above exactly: describe the full letter grid with the exact hidden words in single-prompt mode, or a blank decorative frame in frame-overlay mode.\n"
         . "19. Do not use copyrighted characters, brands, logos, or trademarks.\n"
         . "20. Do not claim that generated images are automatically KDP-ready.\n"
         . "21. Every title and concept must be different from the titles already used in earlier batches.\n"
@@ -533,7 +543,9 @@ function bb_fallback_page(array $input, int $pageNumber): array {
     if ($activityType === 'word-search') {
         $puzzle = bb_build_word_search_puzzle($theme, $pageNumber, $input);
         $wordList = implode(', ', $puzzle['words']);
-        $imagePrompt = "Create a printable word-search puzzle page for children, vertical A4 portrait composition. Main content: a complete 12 by 12 grid of large, bold, perfectly legible uppercase letters in even rows and columns with thin gridlines. The grid must hide exactly these words, reading forward horizontally, vertically, or diagonally: {$wordList}. Fill every remaining empty cell with random uppercase letters so the whole grid is full, with no blank cells. Use small {$theme} themed decorative icons only in the outer margins and corners, never overlapping the grid. Include a clear title at the top and a printed word list below the grid listing the hidden words. High-contrast black letters on a white grid background, crisp and evenly spaced. Note: current AI image models are unreliable at exact letter/grid rendering - proofread the result before using it.";
+        $imagePrompt = ($input['wordSearchImageMode'] ?? 'single-prompt') === 'frame-overlay'
+            ? "Create a clean printable word-search worksheet frame for children, vertical A4 portrait composition. Use small {$theme} themed border decorations in the corners and margins, with a large blank central rectangle reserved for a 12 by 12 word-search grid that will be added later by the seller. Include a small blank word-list area below the grid, generous white space, simple child-friendly icons, and a polished workbook feel. Do not render any letters, words, puzzle grid, answer key, labels, captions, signage, typography, watermark, logo, or random symbols anywhere in the image."
+            : "Create a printable word-search puzzle page for children, vertical A4 portrait composition. Main content: a complete 12 by 12 grid of large, bold, perfectly legible uppercase letters in even rows and columns with thin gridlines. The grid must hide exactly these words, reading forward horizontally, vertically, or diagonally: {$wordList}. Fill every remaining empty cell with random uppercase letters so the whole grid is full, with no blank cells. Use small {$theme} themed decorative icons only in the outer margins and corners, never overlapping the grid. Include a clear title at the top and a printed word list below the grid listing the hidden words. High-contrast black letters on a white grid background, crisp and evenly spaced. Note: current AI image models are unreliable at exact letter/grid rendering - proofread the result before using it.";
         $contentItems = ["WORD SEARCH MODE: {$puzzle['mode']}", 'WORD LIST: ' . implode(', ', $puzzle['words'])];
         foreach ($puzzle['rows'] as $index => $row) $contentItems[] = 'GRID ROW ' . str_pad((string)($index + 1), 2, '0', STR_PAD_LEFT) . ": {$row}";
         return array_merge($base, [
@@ -829,6 +841,13 @@ function bb_validate(array $input): array {
         throw new BBAccessException('Please select a valid word search type / genre.');
     }
     if ($input['activityType'] !== 'word-search') $input['wordSearchMode'] = '';
+
+    // single-prompt: ask AI to draw the full grid in one image (best-effort - AI image
+    // models are unreliable at exact letter/grid placement, especially vertical/diagonal
+    // words). frame-overlay: ask AI for decorative background only, and the seller
+    // overlays the app's own code-rendered transparent grid PNG on top themselves.
+    $input['wordSearchImageMode'] = in_array($input['wordSearchImageMode'] ?? '', ['single-prompt', 'frame-overlay'], true)
+        ? $input['wordSearchImageMode'] : 'single-prompt';
 
     $input['difficulty'] = $input['genreType'];
     $input['style'] = trim((string)(($input['style'] ?? '') ?: bb_style_from_genre($input['genreType'])));

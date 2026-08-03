@@ -271,13 +271,14 @@ if ($pathname === '/api/reset-password' && $method === 'POST') {
 if ($pathname === '/api/word-search-image' && $method === 'POST') {
     $contentItems = is_array($body['contentItems'] ?? null) ? $body['contentItems'] : [];
     $title = trim((string)($body['title'] ?? 'Word Search'));
+    $transparent = ($body['transparent'] ?? false) === true;
     try {
-        $png = bb_render_word_search_image($contentItems, $title !== '' ? $title : 'Word Search');
+        $png = bb_render_word_search_image($contentItems, $title !== '' ? $title : 'Word Search', $transparent);
     } catch (Throwable $e) {
         bb_json_response(400, ['error' => $e->getMessage()]);
     }
     header('Content-Type: image/png');
-    header('Content-Disposition: inline; filename="word-search.png"');
+    header('Content-Disposition: inline; filename="' . ($transparent ? 'word-search-overlay.png' : 'word-search.png') . '"');
     header('Cache-Control: no-store');
     echo $png;
     exit;

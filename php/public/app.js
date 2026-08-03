@@ -254,6 +254,7 @@ function applyFeatureGates(){
     setPlainOptions($("#genreType"),finalGenreOptions.map(value=>({value,label:value})),finalGenreOptions[0]);
   }
   if($("#genreTypeLabel"))$("#genreTypeLabel").textContent=genreFieldLabel(activity);
+  $("#wordSearchImageModeField")?.classList.toggle("hidden",activity!=="word-search");
 
   const pageCountsByFeature=initialPageCounts.filter(value=>hasFeature(`quantity.${value}`)).map(value=>({value,label:value}));
   const pageCounts=hasLoadedFeatures?pageCountsByFeature:initialPageCounts.map(value=>({value,label:value}));
@@ -292,6 +293,7 @@ async function health(){try{const d=await api("/api/health");engineReady=!!(d.gr
 function settings(){
   const activityType=$("#activityType").value,genreType=$("#genreType").value;
   const wordSearchMode=activityType==="word-search"?genreType:"";
+  const wordSearchImageMode=activityType==="word-search"?($("#wordSearchImageMode")?.value||"single-prompt"):"";
   const effectiveGenre=effectiveGenreForActivity(activityType,genreType);
   const bookIdea=$("#bookIdea")?.value.trim()||"";
   const isCustomIdea=$("#detectedThemeName")?.textContent==="Custom Idea";
@@ -299,7 +301,7 @@ function settings(){
   const topic=isCustomIdea&&bookIdea?bookIdea:theme;
   const customDirection=$("#customDirection")?.disabled?"":($("#customDirection")?.value.trim()||"");
   const avoidTerms=$("#avoidTerms")?.disabled?"":($("#avoidTerms")?.value.trim()||"");
-  return{topic,theme,bookIdea,customDirection,avoidTerms,activityType,activityTypes:[activityType],age:$("#age").value,language:$("#language").value,pageCount:Number($("#pageCount").value),genreType:effectiveGenre,difficulty:effectiveGenre,displayGenre:genreType,wordSearchMode,size:"A4",style:styleFromGenre(effectiveGenre),learningGoal:"",guideCharacter:""};
+  return{topic,theme,bookIdea,customDirection,avoidTerms,activityType,activityTypes:[activityType],age:$("#age").value,language:$("#language").value,pageCount:Number($("#pageCount").value),genreType:effectiveGenre,difficulty:effectiveGenre,displayGenre:genreType,wordSearchMode,wordSearchImageMode,size:"A4",style:styleFromGenre(effectiveGenre),learningGoal:"",guideCharacter:""};
 }
 function normalizeSelections(){
   applyFeatureGates();
@@ -390,7 +392,7 @@ function renderPublishingKit(book){
 function renderPageWorkspace(book){
   selectedPageIndex=0;
   $("#pageList").innerHTML=book.pages.map((p,n)=>{
-    const puzzleBtn=p.activity_type==="word-search"?`<button data-puzzle-image="${n}" title="Download a ready-to-use puzzle image">Download Puzzle Image</button>`:"";
+    const puzzleBtn=p.activity_type==="word-search"?`<button data-puzzle-image="${n}" title="Download a ready-to-use puzzle image">Download Puzzle Image</button><button data-puzzle-overlay="${n}" title="Download a transparent grid to overlay on your own AI background">Download Grid Overlay</button>`:"";
     return `<article class="page-card" data-page-card="${n}"><header><b>${n+1}</b><div><strong>${esc(p.title)}</strong><small>${esc(typeNames[p.activity_type]||p.activity_type)} · ${esc(p.learning_goal)}</small></div><div class="page-actions"><button data-copy-page="${n}" title="Copy image prompt">Copy</button>${puzzleBtn}</div></header><p>${esc(p.instruction)}</p><details><summary>View content, image prompt, and answer</summary><div class="page-details"><span>PAGE CONTENT</span><p>${p.content_items.map(esc).join(" · ")}</p><span>IMAGE PROMPT</span><p>${esc(p.image_prompt)}</p><span>ANSWER KEY</span><p class="answer">${esc(p.answer)}</p></div></details></article>`;
   }).join("");
   $$("[data-copy-page]").forEach(b=>b.addEventListener("click",async()=>{
@@ -398,21 +400,22 @@ function renderPageWorkspace(book){
     await navigator.clipboard.writeText(book.pages[selectedPageIndex].image_prompt);
     toast("Image prompt copied");
   }));
-  $$("[data-puzzle-image]").forEach(b=>b.addEventListener("click",async()=>{
-    const page=book.pages[Number(b.dataset.puzzleImage)];
+  async function downloadWordSearchImage(b,page,transparent,filenameSuffix,successMsg){
     b.disabled=true;const original=b.textContent;b.textContent="Rendering...";
     try{
-      const res=await fetch("/api/word-search-image",{method:"POST",headers:{"Content-Type":"application/json","x-user-token":userToken()},body:JSON.stringify({contentItems:page.content_items,title:page.title})});
+      const res=await fetch("/api/word-search-image",{method:"POST",headers:{"Content-Type":"application/json","x-user-token":userToken()},body:JSON.stringify({contentItems:page.content_items,title:page.title,transparent})});
       if(!res.ok){const d=await res.json().catch(()=>({}));throw new Error(d.error||"Could not render the puzzle image.")}
       const blob=await res.blob();
       const url=URL.createObjectURL(blob);
       const a=document.createElement("a");
-      a.href=url;a.download=`${page.title.replace(/[^a-z0-9]+/gi,"-")}.png`;a.click();
+      a.href=url;a.download=`${page.title.replace(/[^a-z0-9]+/gi,"-")}${filenameSuffix}.png`;a.click();
       URL.revokeObjectURL(url);
-      toast("Puzzle image ready","Downloaded a ready-to-use word search image.")
+      toast("Puzzle image ready",successMsg)
     }catch(e){toast("Unable to render puzzle image",e.message)}
     finally{b.disabled=false;b.textContent=original}
-  }));
+  }
+  $$("[data-puzzle-image]").forEach(b=>b.addEventListener("click",()=>downloadWordSearchImage(b,book.pages[Number(b.dataset.puzzleImage)],false,"","Downloaded a ready-to-use word search image.")));
+  $$("[data-puzzle-overlay]").forEach(b=>b.addEventListener("click",()=>downloadWordSearchImage(b,book.pages[Number(b.dataset.puzzleOverlay)],true,"-overlay","Downloaded a transparent grid - drop it as a layer on top of your AI background image.")));
 }
 function render(book){$("#loading").classList.add("hidden");$("#result").classList.remove("hidden");$("#bookTitle").textContent=book.book_title;$("#bookSubtitle").textContent=book.subtitle;$("#bookDescription").textContent=book.description;$("#metaAge").textContent=currentSettings.age;$("#metaPages").textContent=`${book.pages.length} pages`;$("#metaGenre").textContent=currentSettings.displayGenre||currentSettings.genreType||currentSettings.difficulty;$("#coverPrompt").textContent=book.cover_prompt;$("#keywords").innerHTML=tagHtml(book.keywords||[]);renderPublishingKit(book);renderPageWorkspace(book)}
 $$(".tabs button").forEach(b=>b.addEventListener("click",()=>{$$(".tabs button").forEach(x=>x.classList.remove("active"));b.classList.add("active");["pages","cover","listing","quality"].forEach(tab=>$(`#${tab}Tab`).classList.toggle("hidden",b.dataset.tab!==tab))}));

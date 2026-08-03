@@ -149,6 +149,13 @@
                   <option>Vintage Workbook</option>
                 </select>
               </label>
+              <label id="wordSearchImageModeField" class="hidden"><span>Image Method</span>
+                <select id="wordSearchImageMode">
+                  <option value="single-prompt" selected>AI draws the full puzzle (one prompt)</option>
+                  <option value="frame-overlay">AI draws background only + you add the grid</option>
+                </select>
+                <small id="wordSearchImageModeHelp">Best-effort: AI image tools often ignore vertical/diagonal word placement.</small>
+              </label>
             </div>
 
             <details id="advancedInputs">
