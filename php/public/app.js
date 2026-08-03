@@ -390,12 +390,28 @@ function renderPublishingKit(book){
 function renderPageWorkspace(book){
   selectedPageIndex=0;
   $("#pageList").innerHTML=book.pages.map((p,n)=>{
-    return `<article class="page-card" data-page-card="${n}"><header><b>${n+1}</b><div><strong>${esc(p.title)}</strong><small>${esc(typeNames[p.activity_type]||p.activity_type)} · ${esc(p.learning_goal)}</small></div><div class="page-actions"><button data-copy-page="${n}" title="Copy image prompt">Copy</button></div></header><p>${esc(p.instruction)}</p><details><summary>View content, image prompt, and answer</summary><div class="page-details"><span>PAGE CONTENT</span><p>${p.content_items.map(esc).join(" · ")}</p><span>IMAGE PROMPT</span><p>${esc(p.image_prompt)}</p><span>ANSWER KEY</span><p class="answer">${esc(p.answer)}</p></div></details></article>`;
+    const puzzleBtn=p.activity_type==="word-search"?`<button data-puzzle-image="${n}" title="Download a ready-to-use puzzle image">Download Puzzle Image</button>`:"";
+    return `<article class="page-card" data-page-card="${n}"><header><b>${n+1}</b><div><strong>${esc(p.title)}</strong><small>${esc(typeNames[p.activity_type]||p.activity_type)} · ${esc(p.learning_goal)}</small></div><div class="page-actions"><button data-copy-page="${n}" title="Copy image prompt">Copy</button>${puzzleBtn}</div></header><p>${esc(p.instruction)}</p><details><summary>View content, image prompt, and answer</summary><div class="page-details"><span>PAGE CONTENT</span><p>${p.content_items.map(esc).join(" · ")}</p><span>IMAGE PROMPT</span><p>${esc(p.image_prompt)}</p><span>ANSWER KEY</span><p class="answer">${esc(p.answer)}</p></div></details></article>`;
   }).join("");
   $$("[data-copy-page]").forEach(b=>b.addEventListener("click",async()=>{
     selectedPageIndex=Number(b.dataset.copyPage);
     await navigator.clipboard.writeText(book.pages[selectedPageIndex].image_prompt);
     toast("Image prompt copied");
+  }));
+  $$("[data-puzzle-image]").forEach(b=>b.addEventListener("click",async()=>{
+    const page=book.pages[Number(b.dataset.puzzleImage)];
+    b.disabled=true;const original=b.textContent;b.textContent="Rendering...";
+    try{
+      const res=await fetch("/api/word-search-image",{method:"POST",headers:{"Content-Type":"application/json","x-user-token":userToken()},body:JSON.stringify({contentItems:page.content_items,title:page.title})});
+      if(!res.ok){const d=await res.json().catch(()=>({}));throw new Error(d.error||"Could not render the puzzle image.")}
+      const blob=await res.blob();
+      const url=URL.createObjectURL(blob);
+      const a=document.createElement("a");
+      a.href=url;a.download=`${page.title.replace(/[^a-z0-9]+/gi,"-")}.png`;a.click();
+      URL.revokeObjectURL(url);
+      toast("Puzzle image ready","Downloaded a ready-to-use word search image.")
+    }catch(e){toast("Unable to render puzzle image",e.message)}
+    finally{b.disabled=false;b.textContent=original}
   }));
 }
 function render(book){$("#loading").classList.add("hidden");$("#result").classList.remove("hidden");$("#bookTitle").textContent=book.book_title;$("#bookSubtitle").textContent=book.subtitle;$("#bookDescription").textContent=book.description;$("#metaAge").textContent=currentSettings.age;$("#metaPages").textContent=`${book.pages.length} pages`;$("#metaGenre").textContent=currentSettings.displayGenre||currentSettings.genreType||currentSettings.difficulty;$("#coverPrompt").textContent=book.cover_prompt;$("#keywords").innerHTML=tagHtml(book.keywords||[]);renderPublishingKit(book);renderPageWorkspace(book)}

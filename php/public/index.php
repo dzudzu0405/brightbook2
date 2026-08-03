@@ -9,6 +9,7 @@ require_once __DIR__ . '/../src/db.php';
 require_once __DIR__ . '/../src/theme.php';
 require_once __DIR__ . '/../src/access.php';
 require_once __DIR__ . '/../src/book.php';
+require_once __DIR__ . '/../src/generators/word_search_image.php';
 
 function bb_json_response(int $status, array $data): void {
     http_response_code($status);
@@ -263,6 +264,23 @@ if ($pathname === '/api/reset-password' && $method === 'POST') {
         bb_json_response(400, ['error' => $e->getMessage()]);
     }
     bb_json_response(200, ['ok' => true]);
+}
+
+// Renders an already-generated word-search page's grid into a real PNG via GD
+// (see word_search_image.php for why this can't just be an AI image prompt).
+if ($pathname === '/api/word-search-image' && $method === 'POST') {
+    $contentItems = is_array($body['contentItems'] ?? null) ? $body['contentItems'] : [];
+    $title = trim((string)($body['title'] ?? 'Word Search'));
+    try {
+        $png = bb_render_word_search_image($contentItems, $title !== '' ? $title : 'Word Search');
+    } catch (Throwable $e) {
+        bb_json_response(400, ['error' => $e->getMessage()]);
+    }
+    header('Content-Type: image/png');
+    header('Content-Disposition: inline; filename="word-search.png"');
+    header('Cache-Control: no-store');
+    echo $png;
+    exit;
 }
 
 if ($pathname === '/api/generate' && $method === 'POST') {
