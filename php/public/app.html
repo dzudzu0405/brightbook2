@@ -154,14 +154,14 @@
               </label>
             </div>
 
-            <div class="field-block hidden" id="wordSearchImageModeField">
-              <label><span>Image Method</span>
+            <div class="field-block hidden image-method-card" id="wordSearchImageModeField">
+              <label><span>How should the puzzle image be created?</span>
                 <select id="wordSearchImageMode">
-                  <option value="single-prompt" selected>AI draws the full puzzle (one prompt)</option>
-                  <option value="frame-overlay">AI draws background only + you add the grid</option>
+                  <option value="single-prompt" selected>Option A - Quick: one AI image with everything</option>
+                  <option value="frame-overlay">Option B - Best quality: AI background + exact grid overlay</option>
                 </select>
-                <small class="field-help">Best-effort: AI image tools often ignore vertical/diagonal word placement.</small>
               </label>
+              <p class="image-method-explainer" id="wordSearchImageModeHelp"></p>
             </div>
 
             <details id="advancedInputs">

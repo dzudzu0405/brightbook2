@@ -174,6 +174,9 @@ select:focus,input:focus{
   box-shadow:0 0 0 4px rgba(139,92,246,.12),0 8px 22px rgba(15,23,42,.035);
 }
 .field-help{margin-top:2px;color:#7b8794;font-size:11px}
+.image-method-card{padding:14px 16px 16px;background:#f5fbf8;border:1px solid #d5eee5;border-radius:12px}
+.image-method-card label{margin-bottom:0}
+.image-method-explainer{margin:11px 0 0;padding-top:11px;border-top:1px solid #d5eee5;color:#4b6359;font-size:11px;line-height:1.65}
 .generate-row{
   margin-top:24px;padding:22px;
   border:1px solid #e5eaf1;border-radius:22px;

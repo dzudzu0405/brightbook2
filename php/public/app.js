@@ -199,6 +199,16 @@ function genreFieldLabel(activity){
   if(activity==="word-search")return "Puzzle Type";
   return "Type / Genre";
 }
+const WORD_SEARCH_IMAGE_MODE_HELP={
+  "single-prompt":"You'll get one AI image prompt that includes the whole puzzle - paste it into your AI image tool (Midjourney, DALL-E, ChatGPT, etc.) and it draws the letter grid for you. Quick, but AI image tools sometimes only place words in straight rows and can miss vertical or diagonal ones - check the result before using it. Tip: every page also has a \"Download Puzzle Image\" button that instantly creates a guaranteed-correct puzzle image with no AI needed.",
+  "frame-overlay":"You'll get an AI image prompt for a pretty decorative background only (no letters). After generating that with your AI tool, click \"Download Grid Overlay\" on each page to get a see-through image of the exact word grid, then drag it on top of your background in Canva or Photoshop. A couple extra clicks, but the puzzle is always 100% correct."
+};
+function updateWordSearchImageModeHelp(){
+  const help=$("#wordSearchImageModeHelp");
+  if(!help)return;
+  const mode=$("#wordSearchImageMode")?.value||"single-prompt";
+  help.textContent=WORD_SEARCH_IMAGE_MODE_HELP[mode]||"";
+}
 function applyFeatureGates(){
   const previous={activity:$("#activityType").value,theme:$("#theme").value,genre:$("#genreType").value,pageCount:$("#pageCount").value};
   const hasLoadedFeatures=accountFeatures.size>0;
@@ -255,6 +265,7 @@ function applyFeatureGates(){
   }
   if($("#genreTypeLabel"))$("#genreTypeLabel").textContent=genreFieldLabel(activity);
   $("#wordSearchImageModeField")?.classList.toggle("hidden",activity!=="word-search");
+  updateWordSearchImageModeHelp();
 
   const pageCountsByFeature=initialPageCounts.filter(value=>hasFeature(`quantity.${value}`)).map(value=>({value,label:value}));
   const pageCounts=hasLoadedFeatures?pageCountsByFeature:initialPageCounts.map(value=>({value,label:value}));
@@ -284,6 +295,7 @@ function showView(name){Object.values(views).forEach(v=>v.classList.remove("acti
 $$("nav button").forEach(b=>b.addEventListener("click",()=>showView(b.dataset.view)));$(".menu").addEventListener("click",()=>$(".sidebar").classList.toggle("open"));$("#newBook").addEventListener("click",()=>{reset();showView("creator")});
 $("#activityType").addEventListener("change",applyFeatureGates);
 $("#genreType").addEventListener("change",applyFeatureGates);
+$("#wordSearchImageMode")?.addEventListener("change",updateWordSearchImageModeHelp);
 $("#bookIdea")?.addEventListener("input",applyFeatureGates);
 $("#accountButton")?.addEventListener("click",e=>{e.stopPropagation();$("#accountMenu")?.classList.toggle("hidden")});
 document.addEventListener("click",e=>{if(!e.target.closest?.("#accountDock"))$("#accountMenu")?.classList.add("hidden")});
