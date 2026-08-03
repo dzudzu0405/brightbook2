@@ -4,6 +4,9 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>BrightBook Studio — Educational Activity Book Creator</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="styles.css">
 </head>
 <body>
@@ -131,7 +134,7 @@
               </label>
             </div>
 
-            <div class="grid three">
+            <div class="grid two">
               <label><span>Prompts per Generation</span>
                 <select id="pageCount"><option selected>25</option><option>30</option></select>
               </label>
@@ -149,12 +152,15 @@
                   <option>Vintage Workbook</option>
                 </select>
               </label>
-              <label id="wordSearchImageModeField" class="hidden"><span>Image Method</span>
+            </div>
+
+            <div class="field-block hidden" id="wordSearchImageModeField">
+              <label><span>Image Method</span>
                 <select id="wordSearchImageMode">
                   <option value="single-prompt" selected>AI draws the full puzzle (one prompt)</option>
                   <option value="frame-overlay">AI draws background only + you add the grid</option>
                 </select>
-                <small id="wordSearchImageModeHelp">Best-effort: AI image tools often ignore vertical/diagonal word placement.</small>
+                <small class="field-help">Best-effort: AI image tools often ignore vertical/diagonal word placement.</small>
               </label>
             </div>
 
