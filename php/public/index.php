@@ -296,6 +296,12 @@ if ($pathname === '/api/generate' && $method === 'POST') {
     }
     // PHP's request-per-execution model has no equivalent to Node's client-disconnect
     // abort signal, so unlike server.js this always runs generation to completion.
+    // PHP's default max_execution_time (30s) is shorter than a single Gemini call
+    // can take (up to 90s) and much shorter than a multi-batch book that falls
+    // through Groq -> Gemini more than once - without raising it, PHP kills the
+    // request mid-response with a fatal error, which the frontend can't parse as
+    // JSON and shows as a generic crash instead of a real error message.
+    if (function_exists('set_time_limit')) @set_time_limit(300);
     try {
         $result = bb_generate_book($input);
         $usage = bb_record_usage($db, $access['user'], $access['units'], [
