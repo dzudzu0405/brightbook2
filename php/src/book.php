@@ -773,13 +773,20 @@ function bb_validate(array $input): array {
     if (!in_array($input['genreType'], GENRE_TYPES, true)) throw new BBAccessException('Please select a valid type / genre.');
 
     $input['bookIdea'] = substr(trim(preg_replace('/\s+/', ' ', (string)($input['bookIdea'] ?? ''))), 0, 180);
-    $detectedTheme = bb_detect_theme_from_idea($input['bookIdea'], $input['activityType'], $input['genreType']);
-    if ($detectedTheme !== '') {
-        $input['theme'] = $detectedTheme;
-        $input['topic'] = $detectedTheme;
-    } elseif ($input['bookIdea'] !== '') {
-        $input['theme'] = 'Custom Idea';
-        $input['topic'] = $input['bookIdea'];
+    // Only auto-detect when the caller didn't already resolve a theme (e.g. a raw API
+    // call with just bookIdea). The app always sends an explicit theme - including
+    // "Custom Idea" when its own detection found no match - and that choice must be
+    // respected: silently re-detecting here and overriding it mid-request means the
+    // theme actually billed/feature-gated can differ from what the UI showed the user.
+    if (empty($input['theme'])) {
+        $detectedTheme = bb_detect_theme_from_idea($input['bookIdea'], $input['activityType'], $input['genreType']);
+        if ($detectedTheme !== '') {
+            $input['theme'] = $detectedTheme;
+            $input['topic'] = $detectedTheme;
+        } elseif ($input['bookIdea'] !== '') {
+            $input['theme'] = 'Custom Idea';
+            $input['topic'] = $input['bookIdea'];
+        }
     }
     if (empty($input['theme'])) $input['theme'] = trim((string)($input['topic'] ?? ''));
     if (empty($input['topic'])) $input['topic'] = $input['theme'];

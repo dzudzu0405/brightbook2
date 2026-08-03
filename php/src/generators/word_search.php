@@ -124,10 +124,17 @@ function bb_build_word_search_puzzle(string $theme, int $pageNumber, array $inpu
         }
     }
 
+    // Bounded: for a saturated grid (e.g. an unrecognized theme falling back to a
+    // handful of uniformly long words), placeWord() can keep failing indefinitely -
+    // an unbounded loop here previously ran until PHP's max_execution_time killed the
+    // request mid-response, which the frontend then couldn't parse as JSON at all.
+    // Better to ship a puzzle with fewer than 10 hidden words than hang the request.
     $fillerIndex = 1;
-    while (count($placements) < 10) {
+    $fillerAttempts = 0;
+    while (count($placements) < 10 && $fillerAttempts < 500) {
         $word = 'WORD' . $fillerIndex++;
         $placeWord($word, count($placements), $slotPlan[count($placements) % $slotPlanCount]);
+        $fillerAttempts++;
     }
 
     $alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
