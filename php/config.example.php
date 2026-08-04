@@ -8,6 +8,9 @@
 
 putenv('GROQ_API_KEY=');
 putenv('GEMINI_API_KEY=');
+// REQUIRED - the admin panel (/admin.html) has no other protection. Without this
+// set, every /api/admin/* route stays locked (fails closed), not open to a
+// public default. Pick a long random value, e.g. from `openssl rand -hex 24`.
 putenv('ADMIN_TOKEN=');
 
 // Optional overrides - uncomment only if you need to change the defaults.

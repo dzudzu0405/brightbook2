@@ -85,6 +85,8 @@ function bb_db(): PDO {
     if (!in_array('password_hash', $userCols, true)) $db->exec('ALTER TABLE users ADD COLUMN password_hash TEXT');
     if (!in_array('reset_token', $userCols, true)) $db->exec('ALTER TABLE users ADD COLUMN reset_token TEXT');
     if (!in_array('reset_token_expires_at', $userCols, true)) $db->exec('ALTER TABLE users ADD COLUMN reset_token_expires_at TEXT');
+    if (!in_array('failed_login_attempts', $userCols, true)) $db->exec('ALTER TABLE users ADD COLUMN failed_login_attempts INTEGER NOT NULL DEFAULT 0');
+    if (!in_array('login_locked_until', $userCols, true)) $db->exec('ALTER TABLE users ADD COLUMN login_locked_until TEXT');
 
     $planCount = (int)$db->query('SELECT COUNT(*) AS c FROM plans')->fetch()['c'];
     if ($planCount === 0) bb_seed_billing($db);

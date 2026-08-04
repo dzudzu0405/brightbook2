@@ -3,9 +3,13 @@ declare(strict_types=1);
 
 require_once __DIR__ . '/theme.php';
 
-function bb_admin_token(): string {
+// No fallback default on purpose: the old 'brightbook-admin' default is public
+// (it's right here in the repo), so any deploy that forgot to set ADMIN_TOKEN in
+// config.php would have its admin panel wide open to anyone who reads the source.
+// Returning null makes bb_admin_allowed() fail closed instead.
+function bb_admin_token(): ?string {
     $fromEnv = $_ENV['ADMIN_TOKEN'] ?? (getenv('ADMIN_TOKEN') ?: null);
-    return $fromEnv ?: 'brightbook-admin';
+    return ($fromEnv !== null && $fromEnv !== '') ? $fromEnv : null;
 }
 
 function bb_header(string $name): ?string {
@@ -14,8 +18,9 @@ function bb_header(string $name): ?string {
 }
 
 function bb_admin_allowed(): bool {
-    $provided = bb_header('X-Admin-Token');
     $expected = bb_admin_token();
+    if ($expected === null) return false;
+    $provided = bb_header('X-Admin-Token');
     if (!is_string($provided) || strlen($provided) !== strlen($expected)) return false;
     return hash_equals($expected, $provided);
 }
@@ -73,11 +78,37 @@ function bb_signup(PDO $db, string $email, string $password): array {
     return bb_user_with_plan_by_email($db, $email);
 }
 
+// Fixed valid bcrypt hash of an unrelated string, used only so password_verify()
+// always does real work (never matches). Without this, a nonexistent email skips
+// straight to the throw while a real email pays for a full bcrypt compare, and an
+// attacker can tell which emails are registered just by timing the response.
+const BB_DUMMY_PASSWORD_HASH = '$2y$10$7wDM7DARoR9Bdti8UJbp0.NqMpynekt9L4ce0uXru1FxcVIm/iope';
+
+const BB_LOGIN_MAX_ATTEMPTS = 8;
+const BB_LOGIN_LOCKOUT_SECONDS = 900; // 15 minutes
+
 function bb_login_with_password(PDO $db, string $email, string $password): array {
     $user = bb_user_with_plan_by_email($db, strtolower(trim($email)));
-    if (!$user || empty($user['password_hash']) || !password_verify($password, $user['password_hash'])) {
-        throw new BBAccessException('Incorrect email or password.');
+
+    if ($user && !empty($user['login_locked_until']) && strtotime((string)$user['login_locked_until']) > time()) {
+        throw new BBAccessException('Too many failed attempts. Please try again in a few minutes.');
     }
+
+    $hashToCheck = ($user && !empty($user['password_hash'])) ? $user['password_hash'] : BB_DUMMY_PASSWORD_HASH;
+    $valid = password_verify($password, $hashToCheck) && $user && !empty($user['password_hash']);
+
+    if ($user) {
+        if ($valid) {
+            $db->prepare('UPDATE users SET failed_login_attempts = 0, login_locked_until = NULL WHERE id = ?')->execute([$user['id']]);
+        } else {
+            $attempts = (int)$user['failed_login_attempts'] + 1;
+            $lockedUntil = $attempts >= BB_LOGIN_MAX_ATTEMPTS ? date('Y-m-d H:i:s', time() + BB_LOGIN_LOCKOUT_SECONDS) : null;
+            $db->prepare('UPDATE users SET failed_login_attempts = ?, login_locked_until = ? WHERE id = ?')
+                ->execute([$attempts, $lockedUntil, $user['id']]);
+        }
+    }
+
+    if (!$valid) throw new BBAccessException('Incorrect email or password.');
     return $user;
 }
 
