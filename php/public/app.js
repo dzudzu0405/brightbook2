@@ -171,8 +171,8 @@ function renderAccount(user){
 async function loadAccount(){
   accountLoadPromise=(async()=>{
     try{
-      catalog=await api("/api/catalog");
-      const d=await api("/api/me");
+      catalog=await api("api/catalog");
+      const d=await api("api/me");
       accountFeatures=new Set(d.user.features||[]);
       accountLoaded=true;
       renderAccount(d.user);
@@ -301,7 +301,7 @@ $("#accountButton")?.addEventListener("click",e=>{e.stopPropagation();$("#accoun
 document.addEventListener("click",e=>{if(!e.target.closest?.("#accountDock"))$("#accountMenu")?.classList.add("hidden")});
 $("#accountLogout")?.addEventListener("click",()=>{localStorage.removeItem("brightbookUserToken");location.href="login.html"});
 $$("[data-template]").forEach(b=>b.addEventListener("click",()=>{$("#bookIdea").value=`${b.dataset.theme}: ${b.dataset.template}`;showView("creator");applyFeatureGates()}));
-async function health(){try{const d=await api("/api/health");engineReady=!!(d.groq||d.gemini)}catch{engineReady=false;toast("Connection unavailable","Please start the BrightBook service and try again.",8000)}finally{$("#generate").disabled=false}}
+async function health(){try{const d=await api("api/health");engineReady=!!(d.groq||d.gemini)}catch{engineReady=false;toast("Connection unavailable","Please start the BrightBook service and try again.",8000)}finally{$("#generate").disabled=false}}
 function settings(){
   const activityType=$("#activityType").value,genreType=$("#genreType").value;
   const wordSearchMode=activityType==="word-search"?genreType:"";
@@ -351,7 +351,7 @@ async function generateProductKit(){
     // generator when Groq/Gemini are unreachable or unconfigured, so the request should
     // always be attempted.
     if(engineReady===false)await health();
-    const d=await api("/api/generate",{method:"POST",body:JSON.stringify(currentSettings),signal:generationController.signal});
+    const d=await api("api/generate",{method:"POST",body:JSON.stringify(currentSettings),signal:generationController.signal});
     current=d.book;
     if(!current.pages||current.pages.length!==currentSettings.pageCount)throw new Error(`Expected ${currentSettings.pageCount} prompts, but received ${current.pages?.length||0}. Please generate again.`);
     render(current);
@@ -415,7 +415,7 @@ function renderPageWorkspace(book){
   async function downloadWordSearchImage(b,page,transparent,filenameSuffix,successMsg){
     b.disabled=true;const original=b.textContent;b.textContent="Rendering...";
     try{
-      const res=await fetch("/api/word-search-image",{method:"POST",headers:{"Content-Type":"application/json","x-user-token":userToken()},body:JSON.stringify({contentItems:page.content_items,title:page.title,transparent})});
+      const res=await fetch("api/word-search-image",{method:"POST",headers:{"Content-Type":"application/json","x-user-token":userToken()},body:JSON.stringify({contentItems:page.content_items,title:page.title,transparent})});
       if(!res.ok){const d=await res.json().catch(()=>({}));throw new Error(d.error||"Could not render the puzzle image.")}
       const blob=await res.blob();
       const url=URL.createObjectURL(blob);
@@ -435,8 +435,8 @@ $("[data-copy=cover]").addEventListener("click",async()=>{if(current){await navi
 $("[data-copy=kdpTitle]")?.addEventListener("click",async()=>{if(current?.listing_assets?.kdp_title){await navigator.clipboard.writeText(current.listing_assets.kdp_title);toast("KDP title copied")}});
 $("[data-copy=etsyTitle]")?.addEventListener("click",async()=>{if(current?.listing_assets?.etsy_title){await navigator.clipboard.writeText(current.listing_assets.etsy_title);toast("Etsy title copied")}});
 $("[data-copy=kdpDescription]")?.addEventListener("click",async()=>{if(current?.listing_assets?.kdp_description){await navigator.clipboard.writeText(current.listing_assets.kdp_description);toast("KDP description copied")}});
-$("#saveProject").addEventListener("click",async()=>{if(!current)return;try{await api("/api/projects",{method:"POST",body:JSON.stringify({book:current,settings:currentSettings})});toast("Project saved","Your project is ready in Saved Projects.")}catch(e){toast("Unable to save",e.message)}});
-async function loadProjects(){try{const d=await api("/api/projects");$("#projectGrid").innerHTML=d.items.length?d.items.map(p=>`<article class="project-card"><span class="eyebrow">ACTIVITY BOOK</span><h3>${esc(p.title)}</h3><p>${esc(p.settings.topic||"")} ? ${p.book.pages.length} pages</p><footer><span>${new Date((p.createdAt+"Z").replace(" ","T")).toLocaleDateString("en-US")}</span><button data-open="${p.id}">Open -></button></footer></article>`).join(""):`<p>No saved projects yet.</p>`;$$("[data-open]").forEach(b=>b.addEventListener("click",()=>{const p=d.items.find(x=>x.id===Number(b.dataset.open));current=p.book;currentSettings=p.settings;render(current);showView("creator")}))}catch(e){toast("Unable to load projects",e.message)}}
+$("#saveProject").addEventListener("click",async()=>{if(!current)return;try{await api("api/projects",{method:"POST",body:JSON.stringify({book:current,settings:currentSettings})});toast("Project saved","Your project is ready in Saved Projects.")}catch(e){toast("Unable to save",e.message)}});
+async function loadProjects(){try{const d=await api("api/projects");$("#projectGrid").innerHTML=d.items.length?d.items.map(p=>`<article class="project-card"><span class="eyebrow">ACTIVITY BOOK</span><h3>${esc(p.title)}</h3><p>${esc(p.settings.topic||"")} ? ${p.book.pages.length} pages</p><footer><span>${new Date((p.createdAt+"Z").replace(" ","T")).toLocaleDateString("en-US")}</span><button data-open="${p.id}">Open -></button></footer></article>`).join(""):`<p>No saved projects yet.</p>`;$$("[data-open]").forEach(b=>b.addEventListener("click",()=>{const p=d.items.find(x=>x.id===Number(b.dataset.open));current=p.book;currentSettings=p.settings;render(current);showView("creator")}))}catch(e){toast("Unable to load projects",e.message)}}
 function download(name,text,type="text/plain"){const blob=new Blob([text],{type:`${type};charset=utf-8`}),a=document.createElement("a");a.href=URL.createObjectURL(blob);a.download=name;a.click();URL.revokeObjectURL(a.href)}
 $("#exportJson").addEventListener("click",()=>{if(!current)return toast("Nothing to export","Generate a product kit first.",5000);download("activity-book.json",JSON.stringify(current,null,2),"application/json")});$("#exportTxt").addEventListener("click",()=>{if(!current)return toast("Nothing to export","Generate a product kit first.",5000);const listing=current.listing_assets||{},quality=current.quality_check||{};let t=`${current.book_title}\n${current.subtitle}\n\n${current.description}\n\n`;t+=`KDP TITLE\n${listing.kdp_title||current.book_title}\n\nKDP SUBTITLE\n${listing.kdp_subtitle||current.subtitle}\n\nKDP DESCRIPTION\n${listing.kdp_description||current.description}\n\nBACKEND KEYWORDS\n${(listing.backend_keywords||[]).join("\n")}\n\nETSY TITLE\n${listing.etsy_title||current.book_title}\n\nETSY TAGS\n${(listing.etsy_tags||[]).join(", ")}\n\nA+ CONTENT IDEAS\n${(listing.a_plus_sections||[]).map(x=>`- ${x}`).join("\n")}\n\nQUALITY SCORE\n${quality.score??0}/100\n\nWARNINGS\n${(quality.warnings||[]).map(x=>`- ${x}`).join("\n")||"- No issues found."}\n\nSERIES IDEAS\n${(current.series_ideas||[]).map(x=>`- ${x}`).join("\n")}\n\nPUBLISHING CHECKLIST\n${(current.publishing_checklist||[]).map(x=>`- ${x}`).join("\n")}\n\n`;current.pages.forEach(p=>t+=`PAGE ${p.page_number}: ${p.title}\n${p.instruction}\nContent: ${p.content_items.join(", ")}\nImage prompt: ${p.image_prompt}\nAnswer: ${p.answer}\n\n`);download("activity-book-publishing-kit.txt",t)});
 function reset(){current=null;currentSettings=null;selectedPageIndex=0;$("#activityType").value="coloring";$("#theme").value="Ocean Animals";$("#pageCount").value="25";$("#genreType").value="Classic Educational";$("#bookIdea").value="";$("#customDirection").value="";$("#avoidTerms").value="";$("#result").classList.add("hidden");$("#loading").classList.add("hidden");$("#emptyPreview").classList.remove("hidden");applyFeatureGates()}

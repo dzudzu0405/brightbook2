@@ -12,7 +12,7 @@ function groupFeatures(items){
   return items.reduce((acc,f)=>{(acc[f.category] ||= []).push(f);return acc},{});
 }
 async function loadPlans(){
-  const d=await api("/api/admin/plans");
+  const d=await api("api/admin/plans");
   plans=d.items;
   $("#userPlan").innerHTML=plans.map(p=>`<option value="${p.id}">${esc(p.name)}</option>`).join("");
   $("#featurePlan").innerHTML=plans.map(p=>`<option value="${p.id}">${esc(p.name)}</option>`).join("");
@@ -34,14 +34,14 @@ function renderPlansTable(){
       const priceCents=Math.round(Number(document.querySelector(`[data-plan-price="${id}"]`).value||0)*100);
       const monthlyPromptLimit=Number(document.querySelector(`[data-plan-limit="${id}"]`).value||0);
       const active=document.querySelector(`[data-plan-active="${id}"]`).checked;
-      await api(`/api/admin/plans/${id}`,{method:"PATCH",body:JSON.stringify({name,priceCents,monthlyPromptLimit,active})});
+      await api(`api/admin/plans/${id}`,{method:"PATCH",body:JSON.stringify({name,priceCents,monthlyPromptLimit,active})});
       toast("Plan updated");
       await refresh();
     }catch(e){toast("Unable to update plan",e.message)}
   }));
 }
 async function loadFeatures(){
-  const d=await api("/api/admin/features");
+  const d=await api("api/admin/features");
   features=d.items;
   renderFeatureMatrix();
 }
@@ -57,7 +57,7 @@ function renderFeatureMatrix(){
     </section>`).join("");
 }
 async function loadUsers(){
-  const d=await api("/api/admin/users");
+  const d=await api("api/admin/users");
   const planOptions=user=>plans.map(p=>`<option value="${p.id}" ${p.id===user.planId?"selected":""}>${esc(p.name)}</option>`).join("");
   $("#users").innerHTML=d.items.map(u=>`
     <tr>
@@ -73,28 +73,28 @@ async function loadUsers(){
   $$("[data-reset-link]").forEach(b=>b.addEventListener("click",async()=>{
     const token=b.dataset.resetLink;
     if(!token){toast("No pending reset request","This user has not requested a password reset.");return}
-    const url=`${location.origin}/reset-password.html?token=${encodeURIComponent(token)}`;
+    const url=`${location.href.replace(/[^/]*$/,"")}reset-password.html?token=${encodeURIComponent(token)}`;
     await navigator.clipboard.writeText(url);
     toast("Reset link copied","Send this link to the customer - it expires 1 hour after they requested it.");
   }));
   $$("[data-save]").forEach(b=>b.addEventListener("click",async()=>{
     try{
       const id=b.dataset.save;const status=document.querySelector(`[data-status="${id}"]`).value;const planId=Number(document.querySelector(`[data-plan="${id}"]`).value);
-      await api(`/api/admin/users/${id}`,{method:"PATCH",body:JSON.stringify({status,planId})});
+      await api(`api/admin/users/${id}`,{method:"PATCH",body:JSON.stringify({status,planId})});
       toast("User updated");
       await loadUsers();
     }catch(e){toast("Unable to update user",e.message)}
   }));
 }
 async function loadUsage(){
-  const d=await api("/api/admin/usage");
+  const d=await api("api/admin/usage");
   $("#usage").innerHTML=d.items.map(x=>`<tr><td>${esc(x.createdAt)}</td><td>${esc(x.email)}</td><td>${x.units}</td><td>${esc(x.metadata.activityType||"")}</td><td>${esc(x.metadata.theme||"")}</td></tr>`).join("");
 }
 async function refresh(){try{await loadPlans();await loadFeatures();await loadUsers();await loadUsage()}catch(e){toast("Admin error",e.message)}}
 $("#createUser").addEventListener("click",async()=>{
   try{
     const body={email:$("#userEmail").value,name:$("#userName").value,planId:Number($("#userPlan").value)};
-    const d=await api("/api/admin/users",{method:"POST",body:JSON.stringify(body)});
+    const d=await api("api/admin/users",{method:"POST",body:JSON.stringify(body)});
     toast("User created",`Token: ${d.token}`);
     await refresh();
   }catch(e){toast("Unable to create user",e.message)}
@@ -102,7 +102,7 @@ $("#createUser").addEventListener("click",async()=>{
 $("#createPlan").addEventListener("click",async()=>{
   try{
     const body={name:$("#planName").value,monthlyPromptLimit:Number($("#planLimit").value||0),priceCents:Number($("#planPrice").value||0)};
-    await api("/api/admin/plans",{method:"POST",body:JSON.stringify(body)});
+    await api("api/admin/plans",{method:"POST",body:JSON.stringify(body)});
     toast("Plan created");
     await refresh();
   }catch(e){toast("Unable to create plan",e.message)}
@@ -110,7 +110,7 @@ $("#createPlan").addEventListener("click",async()=>{
 $("#createFeature").addEventListener("click",async()=>{
   try{
     const body={key:$("#featureKey").value,name:$("#featureName").value,category:$("#featureCategory").value,description:$("#featureDescription").value};
-    await api("/api/admin/features",{method:"POST",body:JSON.stringify(body)});
+    await api("api/admin/features",{method:"POST",body:JSON.stringify(body)});
     toast("Feature created");
     await refresh();
   }catch(e){toast("Unable to create feature",e.message)}
@@ -119,7 +119,7 @@ $("#savePlanFeatures").addEventListener("click",async()=>{
   try{
     const planId=Number($("#featurePlan").value);
     const featureIds=$$("#featureMatrix input:checked").map(x=>Number(x.value));
-    await api("/api/admin/plan-features",{method:"POST",body:JSON.stringify({planId,featureIds})});
+    await api("api/admin/plan-features",{method:"POST",body:JSON.stringify({planId,featureIds})});
     toast("Plan features saved");
     await refresh();
   }catch(e){toast("Unable to save features",e.message)}

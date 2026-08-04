@@ -138,7 +138,7 @@
   <a class="chat-bubble" href="app.html">▱</a>
 
   <script>
-    fetch("/api/pricing").then(r => r.json()).then(d => {
+    fetch("api/pricing").then(r => r.json()).then(d => {
       (d.items || []).forEach(p => {
         const el = document.querySelector(`[data-plan-price="${p.name}"]`);
         if (el) el.textContent = "$" + (p.priceCents / 100).toFixed(p.priceCents % 100 === 0 ? 0 : 2);

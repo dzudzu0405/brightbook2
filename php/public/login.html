@@ -140,7 +140,7 @@
       });
 
       async function submitLogin(email, password) {
-        const res = await fetch("/api/login", {
+        const res = await fetch("api/login", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ email, password }),
@@ -152,7 +152,7 @@
       }
 
       async function submitSignup(email, password) {
-        const res = await fetch("/api/signup", {
+        const res = await fetch("api/signup", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ email, password }),
@@ -164,7 +164,7 @@
       }
 
       async function submitForgot(email) {
-        const res = await fetch("/api/forgot-password", {
+        const res = await fetch("api/forgot-password", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ email }),
